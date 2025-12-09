@@ -168,7 +168,7 @@ __attribute__((noinline)) void benchmark(A* a)
       }
    );
 
-   r.run(std::cout);
+   r.run(std::cout, false);
 }
 
 } // namespace

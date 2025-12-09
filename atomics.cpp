@@ -121,7 +121,7 @@ inline void bench() noexcept
        }
    );
 
-   r.run(std::cout);
+   r.run(std::cout, true);
 }
 
 

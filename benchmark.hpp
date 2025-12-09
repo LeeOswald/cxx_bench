@@ -6,13 +6,67 @@
 #include <functional>
 #include <iomanip>
 #include <mutex>
+#include <optional>
 #include <ostream>
 #include <thread>
 #include <vector>
 
 
+#include <sys/times.h>
+#include <unistd.h>
+
+
 namespace Benchmark
 {
+
+
+class CpuMeter final
+{
+public:
+   using Duration = std::chrono::milliseconds;
+
+   struct CpuTimes
+   {
+      Duration user;
+      Duration system;
+   };
+
+   CpuMeter() noexcept = default;
+
+   void start() noexcept
+   {
+      struct tms t = {};
+      ::times(&t);
+
+      m_uStart = t.tms_utime;
+      m_sStart = t.tms_stime;
+   }
+
+   void stop() noexcept
+   {
+     struct tms t = {};
+      ::times(&t);
+
+      m_user += t.tms_utime - m_uStart;
+      m_system += t.tms_stime - m_sStart;
+   }
+
+   CpuTimes value() const noexcept
+   {
+      return CpuTimes {
+        std::chrono::milliseconds{m_user * 1000 / m_freq},
+        std::chrono::milliseconds{m_system * 1000 / m_freq}
+      };
+   }
+
+private:
+   long m_freq = ::sysconf(_SC_CLK_TCK);
+   clock_t m_user = {};
+   clock_t m_system = {};
+   clock_t m_uStart = {};
+   clock_t m_sStart = {};
+};
+
 
 class Stopwatch final
 {
@@ -27,44 +81,64 @@ public:
       m_started = Clock::now();
    }
 
-   auto stop() noexcept
+   std::chrono::nanoseconds stop() noexcept
    {
       auto delta = Clock::now() - m_started;
       m_elapsed += delta;
-      return delta;
+
+      return std::chrono::duration_cast<
+         std::chrono::nanoseconds
+      >(delta);
    }
 
-   auto value() const noexcept
+   std::chrono::nanoseconds value() const noexcept
    {
-      return m_elapsed;
+      return std::chrono::duration_cast<
+         std::chrono::nanoseconds
+      >(m_elapsed);
    }
 
 private:
-   Duration m_elapsed {};
-   Clock::time_point m_started {};
+   Duration m_elapsed = {};
+   Clock::time_point m_started = {};
 };
 
 
+struct Timings final
+{
+   std::chrono::nanoseconds duration;
+   std::optional<CpuMeter::CpuTimes> cpu;
+};
 
-inline Stopwatch::Duration run(
+
+inline Timings run(
    std::invocable auto const& work
 )
 {
+   CpuMeter cm;
    Stopwatch sw;
-   sw.start();
-   work();
-   sw.stop();
 
-   return sw.value();
+   cm.start();
+   sw.start();
+
+   work();
+
+   sw.stop();
+   cm.stop();
+
+   return Timings {
+      sw.value(),
+      cm.value()
+   };
 }
 
 
-inline Stopwatch::Duration run(
+inline Timings run(
    unsigned threads,
    std::invocable auto const& work
 )
 {
-   if (threads < 1)
+   if (threads < 2)
       return run(work);
 
    std::vector<Stopwatch> sw;
@@ -112,7 +186,10 @@ inline Stopwatch::Duration run(
    for (auto& s: sw)
       dura += s.value();
 
-   return dura / sw.size();
+   return Timings {
+      dura / sw.size(),
+      {}
+   };
 }
 
 
@@ -136,7 +213,7 @@ public:
       );
    }
 
-   virtual void run(std::ostream& ss)
+   virtual void run(std::ostream& ss, bool showCpuTimes)
    {
       if (m_bm.empty())
          return;
@@ -150,7 +227,7 @@ public:
 
          ss << std::endl;
 
-         bm.duration = ::Benchmark::run(
+         bm.timings = ::Benchmark::run(
             bm.threads,
             bm.work
          );
@@ -165,24 +242,44 @@ public:
       line();
       ss << " Total, µs|"
          << " Op, ns|"
-         << "   %   |"
-         << "    What     " << std::endl;
+         << "   %   |";
+      if (showCpuTimes)
+         ss << " CPU, ms|";
+
+      ss << "    What     " << std::endl;
       line();
 
-      auto best = m_bm.front().nanoseconds();
+      auto best = m_bm.front().timings.duration.count();
 
       for (auto& bm: m_bm)
       {
-         auto du = bm.nanoseconds();
+         auto du = bm.timings.duration.count();
          auto op = du / bm.iterations;
          auto percent = du * 100.0 / double(best);
 
          ss << std::setw(10) << (du / 1000) <<  "|"
             << std::setw(7) << op << "|"
             << std::setw(7) << std::setprecision(2) << std::fixed
-            << percent << "| "
-            << bm.name << std::endl;
+            << percent << "| ";
 
+         if (showCpuTimes)
+         {
+            if (bm.timings.cpu)
+            {
+               ss << std::setw(3)
+                  << bm.timings.cpu->user.count()
+                  << "/" 
+                  << std::setw(3) << std::left
+                  << bm.timings.cpu->system.count()
+                  << std::right << "| ";
+            }
+            else
+            {
+               ss << "       | ";
+            }
+         }
+
+         ss << bm.name << std::endl;
       }
 
       line();
@@ -195,7 +292,7 @@ private:
       std::uint64_t iterations;
       unsigned threads;
       std::function<void()> work;
-      Stopwatch::Duration duration = {};
+      Timings timings;
 
       Benchmark(
          std::string_view name,
@@ -208,13 +305,6 @@ private:
          , threads(threads)
          , work(std::move(work))
       {}
-
-      std::uint64_t nanoseconds() const noexcept
-      {
-         return std::chrono::duration_cast<
-            std::chrono::nanoseconds
-         >(duration).count();
-      }
    };
 
    std::vector<Benchmark> m_bm;

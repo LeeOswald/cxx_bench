@@ -112,7 +112,7 @@ inline Stopwatch::Duration run(
    for (auto& s: sw)
       dura += s.value();
 
-   return dura / threads;
+   return dura / sw.size();
 }
 
 
@@ -123,25 +123,32 @@ public:
 
    void add(
       auto&& name,
+      std::uint64_t iterations,
       unsigned threads,
       std::invocable auto&&  work
    )
    {
       m_bm.emplace_back(
          std::forward<decltype(name)>(name),
+         iterations,
          threads,
          std::forward<decltype(work)>(work)
       );
    }
 
-   void run(std::ostream& ss)
+   virtual void run(std::ostream& ss)
    {
       if (m_bm.empty())
          return;
 
       for (auto& bm: m_bm)
       {
-         ss << "Running [" << bm.name << "]..." << std::endl;
+         ss << "[" << bm.name << "] ×" << bm.iterations;
+
+         if (bm.threads > 1)
+            ss << " ×" << bm.threads << " threads";
+
+         ss << std::endl;
 
          bm.duration = ::Benchmark::run(
             bm.threads,
@@ -149,46 +156,55 @@ public:
          );
       }
 
-      ss << "‐------------------------------------" << std::endl;
+      auto line = [&ss]() 
+      {
+         ss << "-------------------‐--------------"
+            << "----------------------" << std::endl;
+      };
+
+      line();
+      ss << " Total, µs|"
+         << " Op, ns|"
+         << "   %   |"
+         << "    What     " << std::endl;
+      line();
 
       auto best = m_bm.front().nanoseconds();
-
-      for (auto& bm : m_bm)
-      {
-         auto du = bm.nanoseconds();
-         if (du < best)
-            best = du;
-      }
 
       for (auto& bm: m_bm)
       {
          auto du = bm.nanoseconds();
+         auto op = du / bm.iterations;
          auto percent = du * 100.0 / double(best);
 
-         ss << (du / 1000) <<  " µs ("
-            << std::setprecision(2) << std::fixed
-            << percent << "%) "
-            << "in [" << bm.name << "]" << std::endl;
+         ss << std::setw(10) << (du / 1000) <<  "|"
+            << std::setw(7) << op << "|"
+            << std::setw(7) << std::setprecision(2) << std::fixed
+            << percent << "| "
+            << bm.name << std::endl;
 
       }
 
-      ss << "‐------------------‐-----------------" << std::endl;
+      line();
    }
 
 private:
    struct Benchmark
    {
       std::string name;
+      std::uint64_t iterations;
       unsigned threads;
       std::function<void()> work;
       Stopwatch::Duration duration = {};
 
       Benchmark(
-         std::string_view name, 
+         std::string_view name,
+         std::uint64_t iterations,
          unsigned threads,
          std::function<void()>&& work
       )
          : name(name)
+         , iterations(iterations)
          , threads(threads)
          , work(std::move(work))
       {}

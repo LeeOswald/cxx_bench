@@ -52,6 +52,7 @@ inline void bench() noexcept
 
    r.add(
       "non-atomic increment",
+      iterations,
       1,
       [iterations]()
       {
@@ -62,6 +63,7 @@ inline void bench() noexcept
 
    r.add(
        "ST atomic increment relaxed",
+       iterations,
        1,
        [iterations]()
        {
@@ -76,6 +78,7 @@ inline void bench() noexcept
 
    r.add(
        "ST atomic increment acq_rel",
+       iterations,
        1,
        [iterations]()
        {
@@ -90,7 +93,8 @@ inline void bench() noexcept
 
    r.add(
        "MT atomic increment relaxed",
-       std::thread::hardware_concurrency(),
+       iterations,
+       2,//std::thread::hardware_concurrency(),
        [iterations]()
        {
           static  __::Counter x = 0;
@@ -104,7 +108,8 @@ inline void bench() noexcept
 
    r.add(
        "MT atomic increment acq_rel",
-       std::thread::hardware_concurrency(),
+       iterations,
+       2,//std::thread::hardware_concurrency(),
        [iterations]()
        {
           static  __::Counter x = 0;
@@ -115,8 +120,6 @@ inline void bench() noexcept
           );
        }
    );
-
-   std::cout << "Running " << iterations << " iterations:\n";
 
    r.run(std::cout);
 }

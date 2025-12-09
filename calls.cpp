@@ -37,6 +37,7 @@ __attribute__((noinline)) void benchmark(A* a)
 
    r.add(
       "non-inline call",
+      iterations,
       1,
       [iterations, a]()
       {
@@ -48,6 +49,7 @@ __attribute__((noinline)) void benchmark(A* a)
 
    r.add(
       "virtual call",
+      iterations,
       1,
       [iterations, a]()
       {
@@ -56,8 +58,6 @@ __attribute__((noinline)) void benchmark(A* a)
             a->virtualCall(1);
       }
    );
-
-   std::cout << "Running " << iterations << " iterations:\n";
 
    r.run(std::cout);
 }

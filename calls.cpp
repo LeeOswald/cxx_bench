@@ -8,6 +8,14 @@
 namespace
 {
 
+std::size_t g_result = 0;
+
+__attribute__((noinline)) void freeFun(std::size_t v)
+{
+      g_result += v;
+}
+
+
 struct A
 {
    __attribute__((noinline)) void normalCall(std::size_t v)
@@ -23,7 +31,7 @@ struct A
 
 struct B : public A
 {
-   void virtualCall(std::size_t v) override
+   __attribute__((noinline)) void virtualCall(std::size_t v) override
    {
       m_result += v;
    }
@@ -35,6 +43,18 @@ __attribute__((noinline)) void benchmark(A* a)
    constexpr std::size_t iterations = 100000000ULL;
 
    Benchmark::Runner r;
+
+   r.add(
+      "free function",
+      iterations,
+      1,
+      [iterations]()
+      {
+         auto c = iterations;
+         while (c--)
+            freeFun(1);
+      }
+   );
 
    r.add(
       "normal method",
@@ -57,6 +77,20 @@ __attribute__((noinline)) void benchmark(A* a)
          auto c = iterations;
          while (c--)
             a->virtualCall(1);
+      }
+   );
+
+   std::function<void(std::size_t)> fun = freeFun;
+
+   r.add(
+      "std::function -> free function",
+      iterations,
+      1,
+      [iterations, &fun]()
+      {
+         auto c = iterations;
+         while (c--)
+            fun(1);
       }
    );
 

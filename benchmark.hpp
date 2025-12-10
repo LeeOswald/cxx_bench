@@ -236,6 +236,12 @@ public:
 
    virtual void run(std::ostream& ss, bool showCpuTimes)
    {
+      auto line = [&ss]()
+      {
+         ss << "-------------------‐--------------"
+            << "----------------------" << std::endl;
+      };
+
       auto thickLine = [&ss]()
       {
          ss << "≈================================="
@@ -244,6 +250,7 @@ public:
 
       thickLine();
       ss << m_name << std::endl;
+      line();
 
       if (m_bm.empty())
          return;
@@ -263,12 +270,6 @@ public:
             bm.work
          );
       }
-
-      auto line = [&ss]() 
-      {
-         ss << "-------------------‐--------------"
-            << "----------------------" << std::endl;
-      };
 
       line();
       ss << "  # "

@@ -141,6 +141,8 @@ inline Timings run(
    if (threads < 2)
       return run(work);
 
+   std::vector<CpuMeter> cpu;
+   cpu.resize(threads);
    std::vector<Stopwatch> sw;
    sw.resize(threads);
 
@@ -154,7 +156,7 @@ inline Timings run(
    for (unsigned id = 0; id < threads; ++id)
    {
       workers.emplace_back(
-         [id, &sw, &mtx, &cv, &start, &work]()
+         [id, &cpu, &sw, &mtx, &cv, &start, &work]()
          {
             // start all the workers synchronously
             {
@@ -162,9 +164,13 @@ inline Timings run(
                cv.wait(l, [&start]() { return start; });
             }
 
+            cpu[id].start();
             sw[id].start();
+
             work();
+
             sw[id].stop();
+            cpu[id].stop();
          }
       );
    }
@@ -181,14 +187,27 @@ inline Timings run(
    for (auto& w: workers)
       w.join();
 
-   // calculate the average duration
-   Stopwatch::Duration dura = {};
+   // calculate the average duration & CPU usage
+   std::chrono::nanoseconds dura = {};
    for (auto& s: sw)
+   {
       dura += s.value();
+   }
+   dura /= sw.size();
+
+   CpuMeter::CpuTimes cpuTimes = {{}, {}};
+   for (auto& c : cpu)
+   {
+      auto t = c.value();
+      cpuTimes.user += t.user;
+      cpuTimes.system += t.system;
+   }
+   cpuTimes.user /= cpu.size();
+   cpuTimes.system /= cpu.size();
 
    return Timings {
-      dura / sw.size(),
-      {}
+      dura,
+      cpuTimes
    };
 }
 
@@ -196,7 +215,9 @@ inline Timings run(
 class Runner
 {
 public:
-   Runner() = default;
+   Runner(auto&& name)
+      : m_name{std::forward<decltype(name)>(name)}
+   {}
 
    void add(
       auto&& name,
@@ -215,12 +236,22 @@ public:
 
    virtual void run(std::ostream& ss, bool showCpuTimes)
    {
+      auto thickLine = [&ss]()
+      {
+         ss << "≈================================="
+            << "======================" << std::endl;
+      };
+
+      thickLine();
+      ss << m_name << std::endl;
+
       if (m_bm.empty())
          return;
 
+      std::size_t id = 0;
       for (auto& bm: m_bm)
       {
-         ss << "[" << bm.name << "] ×" << bm.iterations;
+         ss << "#" << id++ << ": [" << bm.name << "] ×" << bm.iterations;
 
          if (bm.threads > 1)
             ss << " ×" << bm.threads << " threads";
@@ -240,46 +271,43 @@ public:
       };
 
       line();
-      ss << " Total, µs|"
-         << " Op, ns|"
-         << "   %   |";
+      ss << "  # "
+         << " Total, µs |"
+         << " Op, ns |"
+         << "    %    |";
       if (showCpuTimes)
-         ss << " CPU, ms|";
+         ss << " CPU (u/s), ms";
 
-      ss << "    What     " << std::endl;
+      ss << std::endl;
       line();
 
       auto best = m_bm.front().timings.duration.count();
 
+      id = 0;
       for (auto& bm: m_bm)
       {
          auto du = bm.timings.duration.count();
          auto op = du / bm.iterations;
          auto percent = du * 100.0 / double(best);
 
-         ss << std::setw(10) << (du / 1000) <<  "|"
-            << std::setw(7) << op << "|"
+         ss << std::setw(3) << id++ << " |"
+            << std::setw(10) << (du / 1000) <<  "|"
+            << std::setw(7) << op << " | "
             << std::setw(7) << std::setprecision(2) << std::fixed
-            << percent << "| ";
+            << percent;
 
          if (showCpuTimes)
          {
             if (bm.timings.cpu)
             {
-               ss << std::setw(3)
+               ss << " | "
                   << bm.timings.cpu->user.count()
                   << "/" 
-                  << std::setw(3) << std::left
-                  << bm.timings.cpu->system.count()
-                  << std::right << "| ";
-            }
-            else
-            {
-               ss << "       | ";
+                  << bm.timings.cpu->system.count();
             }
          }
 
-         ss << bm.name << std::endl;
+         ss << std::endl;
       }
 
       line();
@@ -307,6 +335,7 @@ private:
       {}
    };
 
+   std::string m_name;
    std::vector<Benchmark> m_bm;
 };
 

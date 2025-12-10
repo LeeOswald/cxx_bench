@@ -48,7 +48,7 @@ inline void bench() noexcept
 {
    constexpr std::size_t iterations = 100000000ULL;
 
-   Benchmark::Runner r;
+   Benchmark::Runner r("Atomic operations speed");
 
    r.add(
       "non-atomic increment",

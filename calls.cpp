@@ -42,7 +42,7 @@ __attribute__((noinline)) void benchmark(A* a)
 {
    constexpr std::size_t iterations = 100000000ULL;
 
-   Benchmark::Runner r;
+   Benchmark::Runner r("Function call speed");
 
    r.add(
       "free function",

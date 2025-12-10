@@ -20,18 +20,18 @@ namespace Benchmark
 {
 
 
-class CpuMeter final
+class ProcessCpuTimes final
 {
 public:
    using Duration = std::chrono::milliseconds;
 
-   struct CpuTimes
+   struct Times
    {
       Duration user;
       Duration system;
    };
 
-   CpuMeter() noexcept = default;
+   ProcessCpuTimes() noexcept = default;
 
    void start() noexcept
    {
@@ -51,9 +51,9 @@ public:
       m_system += t.tms_stime - m_sStart;
    }
 
-   CpuTimes value() const noexcept
+   Times value() const noexcept
    {
-      return CpuTimes {
+      return Times {
         std::chrono::milliseconds{m_user * 1000 / m_freq},
         std::chrono::milliseconds{m_system * 1000 / m_freq}
       };
@@ -107,7 +107,7 @@ private:
 struct Timings final
 {
    std::chrono::nanoseconds duration;
-   std::optional<CpuMeter::CpuTimes> cpu;
+   std::optional<ProcessCpuTimes::Times> processCpu;
 };
 
 
@@ -115,7 +115,7 @@ inline Timings run(
    std::invocable auto const& work
 )
 {
-   CpuMeter cm;
+   ProcessCpuTimes cm;
    Stopwatch sw;
 
    cm.start();
@@ -141,7 +141,7 @@ inline Timings run(
    if (threads < 2)
       return run(work);
 
-   std::vector<CpuMeter> cpu;
+   std::vector<ProcessCpuTimes> cpu;
    cpu.resize(threads);
    std::vector<Stopwatch> sw;
    sw.resize(threads);
@@ -197,7 +197,7 @@ inline Timings run(
 
    // this is the CPU time measured for the entire process
    // (not per-thread); however, calculate some avg value
-   CpuMeter::CpuTimes cpuTimes = {{}, {}};
+   ProcessCpuTimes::Times cpuTimes = {{}, {}};
    for (auto& c : cpu)
    {
       auto t = c.value();
@@ -299,12 +299,12 @@ public:
             << std::setw(7) << std::setprecision(2) << std::fixed
             << percent;
 
-         if (bm.timings.cpu)
+         if (bm.timings.processCpu)
          {
             ss << " | "
-               << bm.timings.cpu->user.count()
+               << bm.timings.processCpu->user.count()
                << "/" 
-               << bm.timings.cpu->system.count();
+               << bm.timings.processCpu->system.count();
          }
 
          ss << std::endl;

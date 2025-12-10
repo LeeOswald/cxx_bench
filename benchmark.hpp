@@ -13,11 +13,111 @@
 
 
 #include <sys/times.h>
+#include <time.h>
 #include <unistd.h>
 
 
 namespace Benchmark
 {
+
+using Nanos = std::chrono::nanoseconds;
+
+
+class DefaultTimestampProvider final
+{
+public:
+   using Unit = Nanos;
+
+   constexpr DefaultTimestampProvider() noexcept = default;
+
+   Nanos operator()() const noexcept
+   {
+      auto delta = Clock::now() - pivot();
+      return std::chrono::duration_cast<Nanos>(delta);
+   }
+
+private:
+   using Clock = std::chrono::high_resolution_clock;
+   using TimePoint = Clock::time_point;
+
+   static TimePoint pivot() noexcept
+   {
+      static TimePoint now = Clock::now();
+      return now;
+   }
+};
+
+
+class PreciseTimestampProvider final
+{
+public:
+   using Unit = Nanos;
+
+   constexpr PreciseTimestampProvider() noexcept = default;
+
+   Nanos operator()() noexcept
+   {
+      struct timespec t = {};
+      ::clock_gettime(CLOCK_MONOTONIC_RAW, &t);
+      std::uint64_t v = t.tv_sec;
+      v *= 1000000000ULL;
+      v += t.tv_nsec;
+      return Nanos{ v };
+   }
+};
+
+
+class ThreadCpuTimeProvider final
+{
+public:
+   using Unit = Nanos;
+
+   constexpr ThreadCpuTimeProvider() noexcept = default;
+
+   Nanos operator()() noexcept
+   {
+      struct timespec t = {};
+      ::clock_gettime(CLOCK_THREAD_CPUTIME_ID, &t);
+      std::uint64_t v = t.tv_sec;
+      v *= 1000000000ULL;
+      v += t.tv_nsec;
+      return Nanos{ v };
+   }
+};
+
+
+template <class Provider>
+class Stopwatch
+{
+public:
+   using Unit = typename Provider::Unit;
+
+   constexpr Stopwatch(Provider pr = {})
+      : m_provider(pr)
+   {}
+
+   void start() noexcept
+   {
+      m_started = m_provider();
+   }
+
+   Unit stop() noexcept
+   {
+      auto delta = m_provider() - m_started;
+      m_elapsed += delta;
+      return delta;
+   }
+
+   Unit value() const noexcept
+   {
+      return m_elapsed;
+   }
+
+private:
+   Provider m_provider;
+   Unit m_started = {};
+   Unit m_elapsed = {};
+};
 
 
 class ProcessCpuTimes final
@@ -31,7 +131,7 @@ public:
       Duration system;
    };
 
-   ProcessCpuTimes() noexcept = default;
+   constexpr ProcessCpuTimes() noexcept = default;
 
    void start() noexcept
    {
@@ -68,46 +168,10 @@ private:
 };
 
 
-class Stopwatch final
-{
-public:
-   using Clock = std::chrono::high_resolution_clock;
-   using Duration = Clock::duration;
-
-   Stopwatch() noexcept = default;
-
-   void start() noexcept
-   {
-      m_started = Clock::now();
-   }
-
-   std::chrono::nanoseconds stop() noexcept
-   {
-      auto delta = Clock::now() - m_started;
-      m_elapsed += delta;
-
-      return std::chrono::duration_cast<
-         std::chrono::nanoseconds
-      >(delta);
-   }
-
-   std::chrono::nanoseconds value() const noexcept
-   {
-      return std::chrono::duration_cast<
-         std::chrono::nanoseconds
-      >(m_elapsed);
-   }
-
-private:
-   Duration m_elapsed = {};
-   Clock::time_point m_started = {};
-};
-
-
 struct Timings final
 {
-   std::chrono::nanoseconds duration;
-   std::optional<ProcessCpuTimes::Times> processCpu;
+   Nanos threadCpuTime;
+   std::optional<ProcessCpuTimes::Times> processCpuTimes;
 };
 
 
@@ -115,20 +179,20 @@ inline Timings run(
    std::invocable auto const& work
 )
 {
-   ProcessCpuTimes cm;
-   Stopwatch sw;
+   ProcessCpuTimes pc;
+   Stopwatch<ThreadCpuTimeProvider> tc;
 
-   cm.start();
-   sw.start();
+   pc.start();
+   tc.start();
 
    work();
 
-   sw.stop();
-   cm.stop();
+   tc.stop();
+   pc.stop();
 
    return Timings {
-      sw.value(),
-      cm.value()
+      tc.value(),
+      pc.value()
    };
 }
 
@@ -141,10 +205,10 @@ inline Timings run(
    if (threads < 2)
       return run(work);
 
-   std::vector<ProcessCpuTimes> cpu;
-   cpu.resize(threads);
-   std::vector<Stopwatch> sw;
-   sw.resize(threads);
+   ProcessCpuTimes processCpu;
+
+   std::vector<Stopwatch<ThreadCpuTimeProvider>> threadCpu;
+   threadCpu.resize(threads);
 
    std::vector<std::jthread> workers;
    workers.reserve(threads);
@@ -152,11 +216,21 @@ inline Timings run(
    std::mutex mtx;
    std::condition_variable cv;
    bool start = false;
+   std::atomic<unsigned> active = 0;
 
    for (unsigned id = 0; id < threads; ++id)
    {
       workers.emplace_back(
-         [id, &cpu, &sw, &mtx, &cv, &start, &work]()
+         [
+            id,
+            &processCpu,
+            &threadCpu,
+            &mtx,
+            &cv,
+            &start,
+            &active,
+            &work
+         ]()
          {
             // start all the workers synchronously
             {
@@ -164,13 +238,19 @@ inline Timings run(
                cv.wait(l, [&start]() { return start; });
             }
 
-            cpu[id].start();
-            sw[id].start();
+            // first stsrted thread starts the global timer
+            if (active.fetch_add(1, std::memory_order_acq_rel) == 0)
+               processCpu.start();
+
+            threadCpu[id].start();
 
             work();
 
-            sw[id].stop();
-            cpu[id].stop();
+            threadCpu[id].stop();
+
+            // the last active thread stops the globsl timer
+            if (active.fetch_sub(1, std::memory_order_acq_rel) == 1)
+               processCpu.stop();
          }
       );
    }
@@ -187,30 +267,19 @@ inline Timings run(
    for (auto& w: workers)
       w.join();
 
-   // calculate the average duration
-   std::chrono::nanoseconds dura = {};
-   for (auto& s: sw)
-   {
-      dura += s.value();
-   }
-   dura /= sw.size();
 
-   // this is the CPU time measured for the entire process
-   // (not per-thread); however, calculate some avg value
-   ProcessCpuTimes::Times cpuTimes = {{}, {}};
-   for (auto& c : cpu)
+   // average per-thread CPU time
+   Nanos averageCpu = {};
+   for (auto& cpu : threadCpu)
    {
-      auto t = c.value();
-      cpuTimes.user += t.user;
-      cpuTimes.system += t.system;
+      averageCpu += cpu.value();
    }
 
-   cpuTimes.user /= cpu.size();
-   cpuTimes.system /= cpu.size();
+   averageCpu /= threadCpu.size();
 
    return Timings {
-      dura,
-      cpuTimes
+      averageCpu,
+      processCpu.value()
    };
 }
 
@@ -279,17 +348,16 @@ public:
          << " Total, µs |"
          << " Op, ns |"
          << "    %    |"
-         << " CPU (u/s), ms";
-
-      ss << std::endl;
+         << " CPU (u/s), ms"
+         << std::endl;
       line();
 
-      auto best = m_bm.front().timings.duration.count();
+      auto best = m_bm.front().timings.threadCpuTime.count();
 
       id = 0;
       for (auto& bm: m_bm)
       {
-         auto du = bm.timings.duration.count();
+         auto du = bm.timings.threadCpuTime.count();
          auto op = du / bm.iterations;
          auto percent = du * 100.0 / double(best);
 
@@ -299,12 +367,12 @@ public:
             << std::setw(7) << std::setprecision(2) << std::fixed
             << percent;
 
-         if (bm.timings.processCpu)
+         if (bm.timings.processCpuTimes)
          {
             ss << " | "
-               << bm.timings.processCpu->user.count()
+               << bm.timings.processCpuTimes->user.count()
                << "/" 
-               << bm.timings.processCpu->system.count();
+               << bm.timings.processCpuTimes->system.count();
          }
 
          ss << std::endl;

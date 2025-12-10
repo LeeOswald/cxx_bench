@@ -234,7 +234,7 @@ public:
       );
    }
 
-   virtual void run(std::ostream& ss, bool showCpuTimes)
+   virtual void run(std::ostream& ss)
    {
       auto line = [&ss]()
       {
@@ -275,9 +275,8 @@ public:
       ss << "  # "
          << " Total, µs |"
          << " Op, ns |"
-         << "    %    |";
-      if (showCpuTimes)
-         ss << " CPU (u/s), ms";
+         << "    %    |"
+         << " CPU (u/s), ms";
 
       ss << std::endl;
       line();
@@ -297,15 +296,12 @@ public:
             << std::setw(7) << std::setprecision(2) << std::fixed
             << percent;
 
-         if (showCpuTimes)
+         if (bm.timings.cpu)
          {
-            if (bm.timings.cpu)
-            {
-               ss << " | "
-                  << bm.timings.cpu->user.count()
-                  << "/" 
-                  << bm.timings.cpu->system.count();
-            }
+            ss << " | "
+               << bm.timings.cpu->user.count()
+               << "/" 
+               << bm.timings.cpu->system.count();
          }
 
          ss << std::endl;

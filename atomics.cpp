@@ -62,6 +62,17 @@ inline void bench() noexcept
    );
 
    r.add(
+      "MT non-atomic increment",
+      iterations,
+      2,
+      [iterations]()
+      {
+         static volatile __::CounterType x = 0;
+         __::nonAtomicIncrement(x, iterations);
+      }
+   );
+
+   r.add(
        "ST atomic increment relaxed",
        iterations,
        1,
@@ -121,7 +132,7 @@ inline void bench() noexcept
        }
    );
 
-   r.run(std::cout, true);
+   r.run(std::cout);
 }
 
 

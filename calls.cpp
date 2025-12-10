@@ -8,7 +8,7 @@
 namespace
 {
 
-std::size_t g_result = 0;
+volatile std::size_t g_result = 0;
 
 __attribute__((noinline)) void freeFun(std::size_t v)
 {
@@ -25,7 +25,7 @@ struct A
 
    virtual void virtualCall(std::size_t v) = 0;
 
-   std::size_t m_result;
+   volatile std::size_t m_result;
 };
 
 
@@ -48,6 +48,18 @@ __attribute__((noinline)) void benchmark(A* a)
       "free function",
       iterations,
       1,
+      [iterations]()
+      {
+         auto c = iterations;
+         while (c--)
+            freeFun(1);
+      }
+   );
+
+   r.add(
+      "MT free function",
+      iterations,
+      2,
       [iterations]()
       {
          auto c = iterations;
@@ -168,7 +180,7 @@ __attribute__((noinline)) void benchmark(A* a)
       }
    );
 
-   r.run(std::cout, false);
+   r.run(std::cout);
 }
 
 } // namespace

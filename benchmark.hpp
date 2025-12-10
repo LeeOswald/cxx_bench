@@ -187,7 +187,7 @@ inline Timings run(
    for (auto& w: workers)
       w.join();
 
-   // calculate the average duration & CPU usage
+   // calculate the average duration
    std::chrono::nanoseconds dura = {};
    for (auto& s: sw)
    {
@@ -195,6 +195,8 @@ inline Timings run(
    }
    dura /= sw.size();
 
+   // this is the CPU time measured for the entire process
+   // (not per-thread); however, calculate some avg value
    CpuMeter::CpuTimes cpuTimes = {{}, {}};
    for (auto& c : cpu)
    {
@@ -202,6 +204,7 @@ inline Timings run(
       cpuTimes.user += t.user;
       cpuTimes.system += t.system;
    }
+
    cpuTimes.user /= cpu.size();
    cpuTimes.system /= cpu.size();
 
@@ -272,7 +275,7 @@ public:
       }
 
       line();
-      ss << "  # "
+      ss << "  # |"
          << " Total, µs |"
          << " Op, ns |"
          << "    %    |"
@@ -291,7 +294,7 @@ public:
          auto percent = du * 100.0 / double(best);
 
          ss << std::setw(3) << id++ << " |"
-            << std::setw(10) << (du / 1000) <<  "|"
+            << std::setw(10) << (du / 1000) <<  " |"
             << std::setw(7) << op << " | "
             << std::setw(7) << std::setprecision(2) << std::fixed
             << percent;

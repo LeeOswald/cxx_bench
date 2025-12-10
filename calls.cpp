@@ -5,42 +5,56 @@
 #include "benchmark.hpp"
 
 
+#define BM_DONT_OPTIMIZE \
+   __attribute__((noinline)) __attribute__((optnone))
+
 namespace
 {
 
-volatile std::size_t g_result = 0;
+using Type = std::size_t;
 
-__attribute__((noinline)) void freeFun(std::size_t v)
+
+BM_DONT_OPTIMIZE Type freeFun(
+   Type a,
+   Type b
+)
 {
-      g_result += v;
+   return a + b;
 }
 
 
 struct A
 {
-   __attribute__((noinline)) void normalCall(std::size_t v)
+   BM_DONT_OPTIMIZE Type normalCall(
+      Type a,
+      Type b
+   )
    {
-      m_result += v;
+      return a + b;
    }
 
-   virtual void virtualCall(std::size_t v) = 0;
-
-   volatile std::size_t m_result;
+   virtual Type virtualCall(
+      Type a,
+      Type b
+   ) = 0;
 };
 
 
 struct B : public A
 {
-   __attribute__((noinline)) void virtualCall(std::size_t v) override
+   BM_DONT_OPTIMIZE Type virtualCall(
+      Type a,
+      Type b
+   ) override
    {
-      m_result += v;
+      return a + b;
    }
 };
 
 
-__attribute__((noinline)) void benchmark(A* a)
+void benchmark(A* a)
 {
-   constexpr std::size_t iterations = 100000000ULL;
+   constexpr std::size_t iterations = 1000000000ULL;
 
    Benchmark::Runner r("Function call speed");
 
@@ -52,7 +66,7 @@ __attribute__((noinline)) void benchmark(A* a)
       {
          auto c = iterations;
          while (c--)
-            freeFun(1);
+            freeFun(c, c);
       }
    );
 
@@ -64,7 +78,7 @@ __attribute__((noinline)) void benchmark(A* a)
       {
          auto c = iterations;
          while (c--)
-            freeFun(1);
+            freeFun(c, c);
       }
    );
 
@@ -76,7 +90,7 @@ __attribute__((noinline)) void benchmark(A* a)
       {
          auto c = iterations;
          while (c--)
-            a->normalCall(1);
+            a->normalCall(c, c);
       }
    );
 
@@ -88,11 +102,11 @@ __attribute__((noinline)) void benchmark(A* a)
       {
          auto c = iterations;
          while (c--)
-            a->virtualCall(1);
+            a->virtualCall(c, c);
       }
    );
 
-   std::function<void(std::size_t)> fun = freeFun;
+   std::function<Type(Type, Type)> fun = freeFun;
 
    r.add(
       "std::function -> free function",
@@ -102,81 +116,83 @@ __attribute__((noinline)) void benchmark(A* a)
       {
          auto c = iterations;
          while (c--)
-            fun(1);
+            fun(c, c);
       }
    );
 
-   std::function<void(std::size_t)> fun0 = 
+   std::function<Type(Type, Type)> fun0 =
       std::bind(
-         &A::normalCall, 
-         a, 
-         std::placeholders::_1
+         &A::normalCall,
+         a,
+         std::placeholders::_1,
+         std::placeholders::_2
       );
 
    r.add(
-      "std::function+bind -> method",
+      "std::function + std::bind -> method",
       iterations,
       1,
       [iterations, &fun0]()
       {
          auto c = iterations;
          while (c--)
-            fun0(1);
+            fun0(c, c);
       }
    );
 
-   std::function<void(std::size_t)> fun1 =
+   std::function<Type(Type, Type)> fun1 =
       std::bind(
          &A::virtualCall,
          a,
-         std::placeholders::_1
+         std::placeholders::_1,
+         std::placeholders::_2
       );
 
    r.add(
-      "std::function+bind -> virtual method",
+      "std::function + std::bind -> virtual method",
       iterations,
       1,
       [iterations, &fun1]()
       {
          auto c = iterations;
          while (c--)
-            fun1(1);
+            fun1(c, c);
       }
    );
 
-   std::function<void(std::size_t)> lam0 = 
-   [a](std::size_t v)
+   std::function<Type(Type, Type)> lam0 =
+   [a](Type v1, Type v2)
    {
-      a->normalCall(v);
+      return a->normalCall(v1, v2);
    };
 
    r.add(
-      "std::function+lambda -> method",
+      "std::function + lambda -> method",
       iterations,
       1,
       [iterations, &lam0]()
       {
          auto c = iterations;
          while (c--)
-            lam0(1);
+            lam0(c, c);
       }
    );
 
-   std::function<void(std::size_t)> lam1 = 
-   [a](std::size_t v)
+   std::function<Type(Type, Type)> lam1 =
+   [a](Type v1, Type v2)
    {
-      a->virtualCall(v);
+      return a->virtualCall(v1, v2);
    };
 
    r.add(
-      "std::function+lambda -> virtual method",
+      "std::function + lambda -> virtual method",
       iterations,
       1,
       [iterations, &lam1]()
       {
          auto c = iterations;
          while (c--)
-            lam1(1);
+            lam1(c, c);
       }
    );
 

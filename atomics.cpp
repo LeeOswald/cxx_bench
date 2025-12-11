@@ -11,14 +11,25 @@ namespace
 namespace __
 {
 
-using CounterType = std::size_t;
-using Counter = std::atomic<CounterType>;
+using Integer = std::size_t;
+using AtomicInteger = std::atomic<Integer>;
 
-
-inline void  nonAtomicIncrement(
-   CounterType volatile& v, 
+BM_DONT_OPTIMIZE void basicIncrement(
+   Integer& v,
    std::size_t iterations
-)
+) noexcept
+{
+   if (iterations < 1)
+      return;
+
+   while (iterations-- > 0)
+      v++;
+}
+
+BM_DONT_OPTIMIZE void volatileIncrement(
+   Integer volatile& v, 
+   std::size_t iterations
+) noexcept
 {
    if (iterations < 1)
       return;
@@ -27,8 +38,8 @@ inline void  nonAtomicIncrement(
       v = v + 1;
 }
 
-inline void  atomicIncrement(
-   Counter& v,
+BM_DONT_OPTIMIZE void atomicIncrement(
+   AtomicInteger& v,
    std::memory_order order,
    std::size_t iterations
 ) noexcept
@@ -51,24 +62,36 @@ inline void bench() noexcept
    Benchmark::Runner r("Atomic operations speed");
 
    r.add(
-      "non-atomic increment",
+      "ST integer increment",
       iterations,
       1,
       [iterations]()
       {
-         static volatile __::CounterType x = 0;
-         __::nonAtomicIncrement(x, iterations);
+         static __::Integer x = 0;
+         __::basicIncrement(x, iterations);
       }
    );
 
    r.add(
-      "MT non-atomic increment",
+      "ST volatile integer increment",
+      iterations,
+      1,
+      [iterations]()
+      {
+         static volatile __::Integer x = 0;
+         __::volatileIncrement(x, iterations);
+      }
+   );
+
+   r.add(
+      "MT volatile integer increment",
       iterations,
       2,
       [iterations]()
       {
-         static volatile __::CounterType x = 0;
-         __::nonAtomicIncrement(x, iterations);
+         // shared between threads
+         static volatile __::Integer x = 0;
+         __::volatileIncrement(x, iterations);
       }
    );
 
@@ -78,7 +101,7 @@ inline void bench() noexcept
        1,
        [iterations]()
        {
-          static  __::Counter x = 0;
+          static  __::AtomicInteger x = 0;
           __::atomicIncrement(
              x,
              std::memory_order_relaxed,
@@ -93,7 +116,7 @@ inline void bench() noexcept
        1,
        [iterations]()
        {
-          static  __::Counter x = 0;
+          static  __::AtomicInteger x = 0;
           __::atomicIncrement(
              x,
              std::memory_order_acq_rel,
@@ -105,10 +128,11 @@ inline void bench() noexcept
    r.add(
        "MT atomic increment relaxed",
        iterations,
-       2,//std::thread::hardware_concurrency(),
+       2,
        [iterations]()
        {
-          static  __::Counter x = 0;
+          // shared between threads
+          static  __::AtomicInteger x = 0;
           __::atomicIncrement(
              x,
              std::memory_order_relaxed,
@@ -120,10 +144,11 @@ inline void bench() noexcept
    r.add(
        "MT atomic increment acq_rel",
        iterations,
-       2,//std::thread::hardware_concurrency(),
+       2,
        [iterations]()
        {
-          static  __::Counter x = 0;
+          // shared between threads
+          static  __::AtomicInteger x = 0;
           __::atomicIncrement(
              x,
              std::memory_order_acq_rel,

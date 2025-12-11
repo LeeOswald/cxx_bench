@@ -5,9 +5,6 @@
 #include "benchmark.hpp"
 
 
-#define BM_DONT_OPTIMIZE \
-   __attribute__((noinline)) __attribute__((optnone))
-
 namespace
 {
 

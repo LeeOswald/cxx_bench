@@ -17,6 +17,10 @@
 #include <unistd.h>
 
 
+#define BM_DONT_OPTIMIZE \
+   __attribute__((noinline)) __attribute__((optnone))
+
+
 namespace Benchmark
 {
 

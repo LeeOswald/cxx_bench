@@ -11,40 +11,28 @@ namespace
 using Type = std::size_t;
 
 
-BM_DONT_OPTIMIZE Type freeFun(
-   Type a,
-   Type b
-)
+BM_DONT_OPTIMIZE Type freeFun(Type a)
 {
-   return a + b;
+   return a;
 }
 
 
 struct A
 {
-   BM_DONT_OPTIMIZE Type normalCall(
-      Type a,
-      Type b
-   )
+   BM_DONT_OPTIMIZE Type normalCall(Type a)
    {
-      return a + b;
+      return a;
    }
 
-   virtual Type virtualCall(
-      Type a,
-      Type b
-   ) = 0;
+   virtual Type virtualCall(Type a) = 0;
 };
 
 
 struct B : public A
 {
-   BM_DONT_OPTIMIZE Type virtualCall(
-      Type a,
-      Type b
-   ) override
+   BM_DONT_OPTIMIZE Type virtualCall(Type a) override
    {
-      return a + b;
+      return a;
    }
 };
 
@@ -63,31 +51,19 @@ void benchmark(A* a)
       {
          auto c = iterations;
          while (c--)
-            freeFun(c, c);
+            freeFun(c);
       }
    );
 
    r.add(
-      "MT free function",
-      iterations,
-      2,
-      [iterations]()
-      {
-         auto c = iterations;
-         while (c--)
-            freeFun(c, c);
-      }
-   );
-
-   r.add(
-      "normal method",
+      "class  method",
       iterations,
       1,
       [iterations, a]()
       {
          auto c = iterations;
          while (c--)
-            a->normalCall(c, c);
+            a->normalCall(c);
       }
    );
 
@@ -99,11 +75,11 @@ void benchmark(A* a)
       {
          auto c = iterations;
          while (c--)
-            a->virtualCall(c, c);
+            a->virtualCall(c);
       }
    );
 
-   std::function<Type(Type, Type)> fun = freeFun;
+   std::function<Type(Type)> fun = freeFun;
 
    r.add(
       "std::function -> free function",
@@ -113,16 +89,15 @@ void benchmark(A* a)
       {
          auto c = iterations;
          while (c--)
-            fun(c, c);
+            fun(c);
       }
    );
 
-   std::function<Type(Type, Type)> fun0 =
+   std::function<Type(Type)> fun0 =
       std::bind(
          &A::normalCall,
          a,
-         std::placeholders::_1,
-         std::placeholders::_2
+         std::placeholders::_1
       );
 
    r.add(
@@ -133,16 +108,15 @@ void benchmark(A* a)
       {
          auto c = iterations;
          while (c--)
-            fun0(c, c);
+            fun0(c);
       }
    );
 
-   std::function<Type(Type, Type)> fun1 =
+   std::function<Type(Type)> fun1 =
       std::bind(
          &A::virtualCall,
          a,
-         std::placeholders::_1,
-         std::placeholders::_2
+         std::placeholders::_1
       );
 
    r.add(
@@ -153,14 +127,14 @@ void benchmark(A* a)
       {
          auto c = iterations;
          while (c--)
-            fun1(c, c);
+            fun1(c);
       }
    );
 
-   std::function<Type(Type, Type)> lam0 =
-   [a](Type v1, Type v2)
+   std::function<Type(Type)> lam0 =
+   [a](Type v)
    {
-      return a->normalCall(v1, v2);
+      return a->normalCall(v);
    };
 
    r.add(
@@ -171,14 +145,14 @@ void benchmark(A* a)
       {
          auto c = iterations;
          while (c--)
-            lam0(c, c);
+            lam0(c);
       }
    );
 
-   std::function<Type(Type, Type)> lam1 =
-   [a](Type v1, Type v2)
+   std::function<Type(Type)> lam1 =
+   [a](Type v)
    {
-      return a->virtualCall(v1, v2);
+      return a->virtualCall(v);
    };
 
    r.add(
@@ -189,7 +163,7 @@ void benchmark(A* a)
       {
          auto c = iterations;
          while (c--)
-            lam1(c, c);
+            lam1(c);
       }
    );
 

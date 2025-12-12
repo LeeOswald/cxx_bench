@@ -1,5 +1,6 @@
 #include <atomic>
 #include <iostream>
+#include <mutex>
 #include <thread>
 
 #include "benchmark.hpp"
@@ -23,10 +24,10 @@ BM_DONT_OPTIMIZE void basicIncrement(
       return;
 
    while (iterations-- > 0)
-      v++;
+      ++v;
 }
 
-BM_DONT_OPTIMIZE void volatileIncrement(
+void volatileIncrement(
    Integer volatile& v, 
    std::size_t iterations
 ) noexcept
@@ -38,7 +39,7 @@ BM_DONT_OPTIMIZE void volatileIncrement(
       v = v + 1;
 }
 
-BM_DONT_OPTIMIZE void atomicIncrement(
+void atomicIncrement(
    AtomicInteger& v,
    std::memory_order order,
    std::size_t iterations
@@ -52,6 +53,32 @@ BM_DONT_OPTIMIZE void atomicIncrement(
 }
 
 
+struct IntegerWithMutex
+{
+   std::mutex m;
+   Integer v = 0;
+
+   IntegerWithMutex() = default;
+
+   void increment()
+   {
+      std::lock_guard l(m);
+      ++v;
+   }
+};
+
+void mutexIncrement(
+   IntegerWithMutex& v,
+   std::size_t iterations
+) noexcept
+{
+   if (iterations < 1)
+      return;
+
+   while (iterations-- > 0)
+      v.increment();
+}
+
 } // namespace
 
 
@@ -59,13 +86,15 @@ inline void bench() noexcept
 {
    constexpr std::size_t iterations = 100000000ULL;
 
-   Benchmark::Runner r("Atomic operations speed");
+   Benchmark::Runner r(
+      "Atomic operations speed",
+      iterations
+   );
 
    r.add(
-      "ST integer increment",
-      iterations,
+      "integer increment",
       1,
-      [iterations]()
+      [](std::uint64_t iterations)
       {
          static __::Integer x = 0;
          __::basicIncrement(x, iterations);
@@ -73,10 +102,9 @@ inline void bench() noexcept
    );
 
    r.add(
-      "ST volatile integer increment",
-      iterations,
+      "volatile integer increment (1 thrd)",
       1,
-      [iterations]()
+      [](std::uint64_t iterations)
       {
          static volatile __::Integer x = 0;
          __::volatileIncrement(x, iterations);
@@ -84,10 +112,9 @@ inline void bench() noexcept
    );
 
    r.add(
-      "MT volatile integer increment",
-      iterations,
+      "volatile integer increment (2 thrd)",
       2,
-      [iterations]()
+      [](std::uint64_t iterations)
       {
          // shared between threads
          static volatile __::Integer x = 0;
@@ -96,10 +123,20 @@ inline void bench() noexcept
    );
 
    r.add(
-       "ST atomic increment relaxed",
-       iterations,
+      "volatile integer increment (4 thrd)",
+      4,
+      [](std::uint64_t iterations)
+      {
+         // shared between threads
+         static volatile __::Integer x = 0;
+         __::volatileIncrement(x, iterations);
+      }
+   );
+
+   r.add(
+       "atomic increment relaxed (1 thrd)",
        1,
-       [iterations]()
+       [](std::uint64_t iterations)
        {
           static  __::AtomicInteger x = 0;
           __::atomicIncrement(
@@ -111,10 +148,37 @@ inline void bench() noexcept
    );
 
    r.add(
-       "ST atomic increment acq_rel",
-       iterations,
+       "atomic increment relaxed (2 thrd)",
+       2,
+       [](std::uint64_t iterations)
+       {
+          static  __::AtomicInteger x = 0;
+          __::atomicIncrement(
+             x,
+             std::memory_order_relaxed,
+             iterations
+         );
+       }
+   );
+
+   r.add(
+       "atomic increment relaxed (4 thrd)",
+       4,
+       [](std::uint64_t iterations)
+       {
+          static  __::AtomicInteger x = 0;
+          __::atomicIncrement(
+             x,
+             std::memory_order_relaxed,
+             iterations
+         );
+       }
+   );
+
+   r.add(
+       "atomic increment acq_rel (1 thrd)",
        1,
-       [iterations]()
+       [](std::uint64_t iterations)
        {
           static  __::AtomicInteger x = 0;
           __::atomicIncrement(
@@ -126,34 +190,69 @@ inline void bench() noexcept
    );
 
    r.add(
-       "MT atomic increment relaxed",
-       iterations,
+       "atomic increment acq_rel (2 thrd)",
        2,
-       [iterations]()
+       [](std::uint64_t iterations)
        {
-          // shared between threads
-          static  __::AtomicInteger x = 0;
-          __::atomicIncrement(
-             x,
-             std::memory_order_relaxed,
-             iterations
-          );
-       }
-   );
-
-   r.add(
-       "MT atomic increment acq_rel",
-       iterations,
-       2,
-       [iterations]()
-       {
-          // shared between threads
           static  __::AtomicInteger x = 0;
           __::atomicIncrement(
              x,
              std::memory_order_acq_rel,
              iterations
-          );
+         );
+       }
+   );
+
+   r.add(
+       "atomic increment acq_rel (4 thrd)",
+       4,
+       [](std::uint64_t iterations)
+       {
+          static  __::AtomicInteger x = 0;
+          __::atomicIncrement(
+             x,
+             std::memory_order_acq_rel,
+             iterations
+         );
+       }
+   );
+
+   r.add(
+       "std::mutex increment (1 thrd)",
+       1,
+       [](std::uint64_t iterations)
+       {
+          static  __::IntegerWithMutex x;
+          __::mutexIncrement(
+             x,
+             iterations
+         );
+       }
+   );
+
+   r.add(
+       "std::mutex increment (2 thrd)",
+       2,
+       [](std::uint64_t iterations)
+       {
+          static  __::IntegerWithMutex x;
+          __::mutexIncrement(
+             x,
+             iterations
+         );
+       }
+   );
+
+   r.add(
+       "std::mutex increment (4 thrd)",
+       4,
+       [](std::uint64_t iterations)
+       {
+          static  __::IntegerWithMutex x;
+          __::mutexIncrement(
+             x,
+             iterations
+         );
        }
    );
 

@@ -117,15 +117,14 @@ void run()
 {
    constexpr std::size_t iterations = 1000000000ULL;
 
-   Benchmark::Runner r("Function call speed");
+   Benchmark::Runner r("Function call speed", iterations);
 
    auto ff = makeFreeFun(1024);
 
    r.add(
       "free function",
-      iterations,
       1,
-      [iterations, &ff]()
+      [&ff](std::uint64_t iterations)
       {
          auto c = iterations;
          std::size_t current = 0;
@@ -143,9 +142,8 @@ void run()
 
    r.add(
       "class  method",
-      iterations,
       1,
-      [iterations, &abc]()
+      [&abc](std::uint64_t iterations)
       {
          auto c = iterations;
          std::size_t current = 0;
@@ -161,9 +159,8 @@ void run()
 
    r.add(
       "virtual method",
-      iterations,
       1,
-      [iterations, &abc]()
+      [&abc](std::uint64_t iterations)
       {
          auto c = iterations;
          std::size_t current = 0;
@@ -179,9 +176,8 @@ void run()
 
    r.add(
       "pseudo-virtual method",
-      iterations,
       1,
-      [iterations, &abc]()
+      [&abc](std::uint64_t iterations)
       {
          auto c = iterations;
          std::size_t current = 0;
@@ -198,9 +194,8 @@ void run()
 
    r.add(
       "pImpl method",
-      iterations,
       1,
-      [iterations, &abc]()
+      [&abc](std::uint64_t iterations)
       {
          auto c = iterations;
          std::size_t current = 0;
@@ -218,9 +213,8 @@ void run()
 
    r.add(
       "std::function -> free function",
-      iterations,
       1,
-      [iterations, &ff, &fun]()
+      [&ff, &fun](std::uint64_t iterations)
       {
          auto c = iterations;
          std::size_t current = 0;
@@ -243,9 +237,8 @@ void run()
 
    r.add(
       "std::function + std::bind -> method",
-      iterations,
       1,
-      [iterations, &abc, &fun0]()
+      [&abc, &fun0](std::uint64_t iterations)
       {
          auto c = iterations;
          std::size_t current = 0;
@@ -269,9 +262,8 @@ void run()
 
    r.add(
       "std::function + std::bind -> virtual method",
-      iterations,
       1,
-      [iterations, &abc, &fun1]()
+      [&abc, &fun1](std::uint64_t iterations)
       {
          auto c = iterations;
          std::size_t current = 0;
@@ -294,9 +286,8 @@ void run()
 
    r.add(
       "std::function + lambda -> method",
-      iterations,
       1,
-      [iterations, &abc, &lam0]()
+      [&abc, &lam0](std::uint64_t iterations)
       {
          auto c = iterations;
          std::size_t current = 0;
@@ -319,9 +310,8 @@ void run()
 
    r.add(
       "std::function + lambda -> virtual method",
-      iterations,
       1,
-      [iterations, &abc, &lam1]()
+      [&abc, &lam1](std::uint64_t iterations)
       {
          auto c = iterations;
          std::size_t current = 0;

@@ -202,8 +202,14 @@ struct Timings final
 };
 
 
+template <typename T>
+concept BenchmarkItem = 
+   std::is_invocable_v<T, std::uint64_t>;
+
+
 inline Timings run(
-   std::invocable auto const& work
+   BenchmarkItem auto const& work,
+   std::uint64_t iterations
 )
 {
    ProcessCpuTimes pc;
@@ -212,7 +218,7 @@ inline Timings run(
    pc.start();
    tc.start();
 
-   work();
+   work(iterations);
 
    tc.stop();
    pc.stop();
@@ -226,11 +232,12 @@ inline Timings run(
 
 inline Timings run(
    unsigned threads,
-   std::invocable auto const& work
+   BenchmarkItem  auto const& work,
+   std::uint64_t iterations
 )
 {
    if (threads < 2)
-      return run(work);
+      return run(work, iterations);
 
    ProcessCpuTimes processCpu;
 
@@ -256,7 +263,8 @@ inline Timings run(
             &cv,
             &start,
             &active,
-            &work
+            &work,
+            iterations
          ]()
          {
             // start all the workers synchronously
@@ -271,7 +279,7 @@ inline Timings run(
 
             threadCpu[id].start();
 
-            work();
+            work(iterations);
 
             threadCpu[id].stop();
 
@@ -314,20 +322,19 @@ inline Timings run(
 class Runner
 {
 public:
-   Runner(auto&& name)
+   Runner(auto&& name, std::uint64_t iterations)
       : m_name{std::forward<decltype(name)>(name)}
+      , m_iterations(iterations)
    {}
 
    void add(
       auto&& name,
-      std::uint64_t iterations,
       unsigned threads,
-      std::invocable auto&&  work
+      BenchmarkItem auto&&  work
    )
    {
       m_bm.emplace_back(
          std::forward<decltype(name)>(name),
-         iterations,
          threads,
          std::forward<decltype(work)>(work)
       );
@@ -348,7 +355,11 @@ public:
       };
 
       thickLine();
-      ss << m_name << std::endl;
+      ss << m_name;
+      if (m_iterations > 0)
+         ss << " (" << m_iterations << " iterations)";
+
+      ss <<  std::endl;
       line();
 
       if (m_bm.empty())
@@ -357,21 +368,19 @@ public:
       std::size_t id = 0;
       for (auto& bm: m_bm)
       {
-         ss << "#" << id++ << ": [" << bm.name << "] ×" << bm.iterations;
-
-         if (bm.threads > 1)
-            ss << " ×" << bm.threads << " threads";
-
+         ss << "#" << id++ << ": [" << bm.name << "]";
          ss << std::endl;
 
          bm.timings = ::Benchmark::run(
             bm.threads,
-            bm.work
+            bm.work,
+            m_iterations
          );
       }
 
       line();
       ss << "  # |"
+         << " × |"
          << " Total, µs |"
          << " Op, ns |"
          << "    %    |"
@@ -385,10 +394,11 @@ public:
       for (auto& bm: m_bm)
       {
          auto du = bm.timings.threadCpuTime.count();
-         auto op = du / bm.iterations;
+         auto op = du / m_iterations;
          auto percent = du * 100.0 / double(best);
 
          ss << std::setw(3) << id++ << " |"
+            << std::setw(2) << bm.threads << " |"
             << std::setw(10) << (du / 1000) <<  " |"
             << std::setw(7) << op << " | "
             << std::setw(7) << std::setprecision(2) << std::fixed
@@ -412,25 +422,23 @@ private:
    struct Benchmark
    {
       std::string name;
-      std::uint64_t iterations;
       unsigned threads;
-      std::function<void()> work;
+      std::function<void(std::uint64_t)> work;
       Timings timings;
 
       Benchmark(
          std::string_view name,
-         std::uint64_t iterations,
          unsigned threads,
-         std::function<void()>&& work
+         std::function<void(std::uint64_t)>&& work
       )
          : name(name)
-         , iterations(iterations)
          , threads(threads)
          , work(std::move(work))
       {}
    };
 
    std::string m_name;
+   std::uint64_t m_iterations;
    std::vector<Benchmark> m_bm;
 };
 

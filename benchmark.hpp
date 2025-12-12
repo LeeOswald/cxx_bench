@@ -24,20 +24,43 @@
 namespace Benchmark
 {
 
-using Nanos = std::chrono::nanoseconds;
+// a weak but fast PRNG
+class Random final
+{
+private:
+   uint64_t m_state;
+
+public:
+   constexpr Random(std::uint64_t seed) noexcept
+      : m_state((seed << 1) | 1) 
+   {}
+
+   std::uint64_t operator()() noexcept 
+    {
+      auto x = m_state;
+      x ^= x >> 12;
+      x ^= x << 25;
+      x ^= x >> 27;
+      m_state = x;
+      return x * 0x2545F4914F6CDD1DULL;
+   }
+};
+
+
+using Nanoseconds = std::chrono::nanoseconds;
 
 
 class DefaultTimestampProvider final
 {
 public:
-   using Unit = Nanos;
+   using Unit = Nanoseconds;
 
    constexpr DefaultTimestampProvider() noexcept = default;
 
-   Nanos operator()() const noexcept
+   Nanoseconds operator()() const noexcept
    {
       auto delta = Clock::now() - pivot();
-      return std::chrono::duration_cast<Nanos>(delta);
+      return std::chrono::duration_cast<Nanoseconds>(delta);
    }
 
 private:
@@ -55,18 +78,18 @@ private:
 class PreciseTimestampProvider final
 {
 public:
-   using Unit = Nanos;
+   using Unit = Nanoseconds;
 
    constexpr PreciseTimestampProvider() noexcept = default;
 
-   Nanos operator()() noexcept
+   Nanoseconds operator()() noexcept
    {
       struct timespec t = {};
       ::clock_gettime(CLOCK_MONOTONIC_RAW, &t);
       std::uint64_t v = t.tv_sec;
       v *= 1000000000ULL;
       v += t.tv_nsec;
-      return Nanos{ v };
+      return Nanoseconds{ v };
    }
 };
 
@@ -74,18 +97,18 @@ public:
 class ThreadCpuTimeProvider final
 {
 public:
-   using Unit = Nanos;
+   using Unit = Nanoseconds;
 
    constexpr ThreadCpuTimeProvider() noexcept = default;
 
-   Nanos operator()() noexcept
+   Nanoseconds operator()() noexcept
    {
       struct timespec t = {};
       ::clock_gettime(CLOCK_THREAD_CPUTIME_ID, &t);
       std::uint64_t v = t.tv_sec;
       v *= 1000000000ULL;
       v += t.tv_nsec;
-      return Nanos{ v };
+      return Nanoseconds{ v };
    }
 };
 
@@ -127,12 +150,12 @@ private:
 class ProcessCpuTimes final
 {
 public:
-   using Duration = std::chrono::milliseconds;
+   using Unit = std::chrono::milliseconds;
 
    struct Times
    {
-      Duration user;
-      Duration system;
+      Unit user;
+      Unit system;
    };
 
    constexpr ProcessCpuTimes() noexcept = default;
@@ -174,7 +197,7 @@ private:
 
 struct Timings final
 {
-   Nanos threadCpuTime;
+   Nanoseconds threadCpuTime;
    std::optional<ProcessCpuTimes::Times> processCpuTimes;
 };
 
@@ -252,7 +275,7 @@ inline Timings run(
 
             threadCpu[id].stop();
 
-            // the last active thread stops the globsl timer
+            // the last active thread stops the global timer
             if (active.fetch_sub(1, std::memory_order_acq_rel) == 1)
                processCpu.stop();
          }
@@ -273,7 +296,7 @@ inline Timings run(
 
 
    // average per-thread CPU time
-   Nanos averageCpu = {};
+   Nanoseconds averageCpu = {};
    for (auto& cpu : threadCpu)
    {
       averageCpu += cpu.value();

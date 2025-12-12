@@ -1,6 +1,7 @@
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <vector>
 
 #include "benchmark.hpp"
 
@@ -11,59 +12,172 @@ namespace
 using Type = std::size_t;
 
 
-BM_DONT_OPTIMIZE Type freeFun(Type a)
+struct FreeData
 {
-   return a;
+   Type v;
+
+   constexpr FreeData(Type v) noexcept
+      : v(v)
+   {}
+};
+
+Type freeFun(FreeData* this_, Type a) noexcept
+{
+   this_->v += a;
+   return this_->v;
+}
+
+
+std::vector<std::unique_ptr<FreeData>>
+   makeFreeFun(std::size_t n)
+{
+   std::vector<std::unique_ptr<FreeData>> result;
+   result.reserve(n);
+   for (std::size_t i = 0; i < n; ++i)
+      result.emplace_back(new FreeData(i));
+
+   return result;
 }
 
 
 struct A
 {
-   BM_DONT_OPTIMIZE Type normalCall(Type a)
+   virtual ~A() = default;
+
+   constexpr A(Type v) noexcept
+      : m_v(v)
+   {}
+
+   Type methodCall(Type a)
    {
-      return a;
+      m_v += a;
+      return m_v;
    }
 
    virtual Type virtualCall(Type a) = 0;
+
+   Type (*pseudoVirtualCall)(A*, Type) = nullptr;
+
+   Type m_v = 0;
 };
 
 
 struct B : public A
 {
-   BM_DONT_OPTIMIZE Type virtualCall(Type a) override
+   Type virtualCall(Type a) override
    {
-      return a;
+      m_v += a;
+      return m_v;
+   }
+
+   static Type pseudoVirtualImpl(
+      A* this_,
+      Type a
+   )
+   {
+      this_->m_v += a;
+      return this_->m_v;
+   }
+
+   B(Type v) noexcept
+      : A(v)
+   {
+      A::pseudoVirtualCall = &B::pseudoVirtualImpl;
+   }
+};
+
+struct C : public A
+{
+   Type virtualCall(Type a) override
+   {
+      m_v += a;
+      return m_v;
+   }
+
+   static Type pseudoVirtualImpl(
+      A* this_,
+      Type a
+   )
+   {
+      this_->m_v += a;
+      return this_->m_v;
+   }
+
+   C(Type v) noexcept
+      : A(v)
+   {
+      A::pseudoVirtualCall = &C::pseudoVirtualImpl;
    }
 };
 
 
-void benchmark(A* a)
+std::vector<std::unique_ptr<A>>
+   makeABC(std::size_t n)
+{
+   std::vector<std::unique_ptr<A>> result;
+   result.reserve(n);
+
+   Benchmark::Random r(0);
+
+   for (std::size_t i = 0; i < n; ++i)
+   {
+      auto id = r();
+      if (id % 2 == 0)
+         result.emplace_back(new B(id));
+      else
+         result.emplace_back(new C(id));
+   }
+
+   return result;
+}
+
+
+} // namespace
+
+
+int main()
 {
    constexpr std::size_t iterations = 1000000000ULL;
 
    Benchmark::Runner r("Function call speed");
 
+   auto ff = makeFreeFun(1024);
+
    r.add(
       "free function",
       iterations,
       1,
-      [iterations]()
+      [iterations, &ff]()
       {
          auto c = iterations;
+         std::size_t current = 0;
+         auto count = ff.size();
          while (c--)
-            freeFun(c);
+         {
+            freeFun(ff[current].get(), c);
+            if (++current == count)
+               current = 0;
+         }
       }
    );
+
+   auto abc = makeABC(1024);
 
    r.add(
       "class  method",
       iterations,
       1,
-      [iterations, a]()
+      [iterations, &abc]()
       {
          auto c = iterations;
+         std::size_t current = 0;
+         auto count = abc.size();
          while (c--)
-            a->normalCall(c);
+         {
+            abc[current].get()->methodCall(c);
+            if (++current == count)
+               current = 0;
+         }
       }
    );
 
@@ -71,86 +185,138 @@ void benchmark(A* a)
       "virtual method",
       iterations,
       1,
-      [iterations, a]()
+      [iterations, &abc]()
       {
          auto c = iterations;
+         std::size_t current = 0;
+         auto count = abc.size();
          while (c--)
-            a->virtualCall(c);
+         {
+            abc[current].get()->virtualCall(c);
+            if (++current == count)
+               current = 0;
+         }
       }
    );
 
-   std::function<Type(Type)> fun = freeFun;
+   r.add(
+      "pseudo-virtual method",
+      iterations,
+      1,
+      [iterations, &abc]()
+      {
+         auto c = iterations;
+         std::size_t current = 0;
+         auto count = abc.size();
+         while (c--)
+         {
+            auto o = abc[current].get();
+            o->pseudoVirtualCall(o, c);
+            if (++current == count)
+               current = 0;
+         }
+      }
+   );
+
+   std::function<Type(FreeData*,Type)> fun = freeFun;
 
    r.add(
       "std::function -> free function",
       iterations,
       1,
-      [iterations, &fun]()
+      [iterations, &ff, &fun]()
       {
          auto c = iterations;
+         std::size_t current = 0;
+         auto count = ff.size();
          while (c--)
-            fun(c);
+         {
+            fun(ff[current].get(), c);
+            if (++current == count)
+               current = 0;
+         }
       }
    );
 
-   std::function<Type(Type)> fun0 =
+   std::function<Type(A*,Type)> fun0 =
       std::bind(
-         &A::normalCall,
-         a,
-         std::placeholders::_1
+         &A::methodCall,
+         std::placeholders::_1,
+         std::placeholders::_2
       );
 
    r.add(
       "std::function + std::bind -> method",
       iterations,
       1,
-      [iterations, &fun0]()
+      [iterations, &abc, &fun0]()
       {
          auto c = iterations;
+         std::size_t current = 0;
+         auto count = abc.size();
          while (c--)
-            fun0(c);
+         {
+            auto o = abc[current].get();
+            fun0(o, c);
+            if (++current == count)
+               current = 0;
+         }
       }
    );
 
-   std::function<Type(Type)> fun1 =
+   std::function<Type(A*,Type)> fun1 =
       std::bind(
          &A::virtualCall,
-         a,
-         std::placeholders::_1
+         std::placeholders::_1,
+         std::placeholders::_2
       );
 
    r.add(
       "std::function + std::bind -> virtual method",
       iterations,
       1,
-      [iterations, &fun1]()
+      [iterations, &abc, &fun1]()
       {
          auto c = iterations;
+         std::size_t current = 0;
+         auto count = abc.size();
          while (c--)
-            fun1(c);
+         {
+            auto o = abc[current].get();
+            fun1(o, c);
+            if (++current == count)
+               current = 0;
+         }
       }
    );
 
-   std::function<Type(Type)> lam0 =
-   [a](Type v)
+   std::function<Type(A*,Type)> lam0 =
+   [](A* a, Type v)
    {
-      return a->normalCall(v);
+      return a->methodCall(v);
    };
 
    r.add(
       "std::function + lambda -> method",
       iterations,
       1,
-      [iterations, &lam0]()
+      [iterations, &abc, &lam0]()
       {
          auto c = iterations;
+         std::size_t current = 0;
+         auto count = abc.size();
          while (c--)
-            lam0(c);
+         {
+            auto o = abc[current].get();
+            lam0(o, c);
+            if (++current == count)
+               current = 0;
+         }
       }
    );
 
-   std::function<Type(Type)> lam1 =
-   [a](Type v)
+   std::function<Type(A*,Type)> lam1 =
+   [](A* a, Type v)
    {
       return a->virtualCall(v);
    };
@@ -159,25 +325,23 @@ void benchmark(A* a)
       "std::function + lambda -> virtual method",
       iterations,
       1,
-      [iterations, &lam1]()
+      [iterations, &abc, &lam1]()
       {
          auto c = iterations;
+         std::size_t current = 0;
+         auto count = abc.size();
          while (c--)
-            lam1(c);
+         {
+            auto o = abc[current].get();
+            lam1(o, c);
+            if (++current == count)
+               current = 0;
+         }
       }
    );
 
    r.run(std::cout);
-}
-
-} // namespace
-
-
-int main()
-{
-   auto a = std::make_unique<B>();
-
-   benchmark(a.get());
 
    return 0;
 }
+

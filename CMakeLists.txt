@@ -7,7 +7,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 
 add_executable(atomics atomics.cpp)
-target_compile_options(atomics  PRIVATE -O3)
+target_compile_options(atomics  PRIVATE -O3 -fno-rtti)
 
 add_executable(calls calls.cpp)
-target_compile_options(calls PRIVATE -O3)
+target_compile_options(calls PRIVATE -O3 -fno-rtti)
+
+add_executable(rtti rtti.cpp)
+target_compile_options(rtti PRIVATE -O3)

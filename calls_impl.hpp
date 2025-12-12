@@ -30,11 +30,9 @@ std::vector<std::unique_ptr<FreeData>>
 
 struct A
 {
-   virtual ~A() = default;
+   virtual ~A();
 
-   constexpr A(Type v) noexcept
-      : m_v(v)
-   {}
+   A(Type v) noexcept;
 
    Type methodCall(Type a);
 
@@ -43,6 +41,11 @@ struct A
    Type (*pseudoVirtualCall)(A*, Type) = nullptr;
 
    Type m_v = 0;
+
+   struct Impl;
+   std::unique_ptr<Impl> m_impl;
+
+   Type pimplCall(Type a);
 };
 
 

@@ -23,12 +23,42 @@ std::vector<std::unique_ptr<FreeData>>
    return result;
 }
 
+struct A::Impl
+{
+   Type id;
+
+   Impl(Type id)
+      : id(id)
+   {}
+
+   Type call(Type v)
+   {
+      id += v;
+      return id;
+   }
+};
+
+A::~A()
+{
+}
+
+A::A(Type v) noexcept
+      : m_v(v)
+      , m_impl(new Impl(v))
+{
+}
 
 Type A::methodCall(Type a)
 {
    m_v += a;
    return m_v;
 }
+
+Type A::pimplCall(Type v)
+{
+   return m_impl->call(v);
+}
+
 
 Type B::virtualCall(Type a)
 {
@@ -160,6 +190,24 @@ void run()
          {
             auto o = abc[current].get();
             o->pseudoVirtualCall(o, c);
+            if (++current == count)
+               current = 0;
+         }
+      }
+   );
+
+   r.add(
+      "pImpl method",
+      iterations,
+      1,
+      [iterations, &abc]()
+      {
+         auto c = iterations;
+         std::size_t current = 0;
+         auto count = abc.size();
+         while (c--)
+         {
+            abc[current].get()->pimplCall(c);
             if (++current == count)
                current = 0;
          }

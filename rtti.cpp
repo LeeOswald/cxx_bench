@@ -1,5 +1,7 @@
 #include <cstdio>
 #include <iostream>
+#include <vector>
+#include <typeinfo>
 
 #include "benchmark.hpp"
 
@@ -11,45 +13,45 @@ namespace
 class Base
 {
 public:
-   ~Base()
-   {
-      std::cout << static_cast<const void*>(this)
-         << ".Base::~Base()\n";
-   }
+   static constexpr int TBase = 0;
 
-   Base(int id = -1)
+   virtual ~Base() = default;
+
+   constexpr Base(
+      int id = -1,
+      int type = TBase
+   ) noexcept
       : m_id(id)
+      , m_type(type)
    {
-      std::cout << static_cast<const void*>(this)
-         << ".Base::Base()\n";
    }
 
-   int id() const { return m_id; }
-
-   virtual void say()
+   constexpr auto id() const noexcept
    {
-      std::cout << "Base::say(" << id() << ")\n";
+       return m_id;
    }
+
+   constexpr auto type() const noexcept
+   {
+      return m_type;
+   }
+
+   virtual void say() = 0;
 
 private:
    int m_id;
+   int m_type;
 };
 
 
 class A: virtual public Base
 {
 public:
-   ~A()
-   {
-      std::cout << static_cast<const void*>(this)
-         << ".A::~A()\n";
-   }
+   static constexpr int TA = 1;
 
-   A(int id) 
-      : Base(id) 
+   A(int id, int type = TA) noexcept
+      : Base(id, type) 
    {
-      std::cout << static_cast<const void*>(this)
-         << ".A::A()\n";
    }
 
    void say() override
@@ -62,17 +64,11 @@ public:
 class B: virtual public Base
 {
 public:
-   ~B()
-   {
-      std::cout << static_cast<const void*>(this)
-         << ".B::~B()\n";
-   }
+   static constexpr int TB = 2;
 
-   B(int id)
-      : Base(id)
+   B(int id, int type = TB) noexcept
+      : Base(id, type)
    {
-      std::cout << static_cast<const void*>(this)
-         << ".B::B()\n";
    }
 
    void say() override
@@ -85,44 +81,122 @@ public:
 class AB: public A, public B
 {
 public:
-   ~AB()
-   {
-      std::cout << static_cast<const void*>(this)
-         << ".AB::~AB()\n";
-   }
+   static constexpr int TAB = 3;
 
-   AB(int id)
-      : A(1000+id)
-      , B(2000+id)
+   AB(int id, int type = TAB) noexcept
+      : A(id, type)
+      , B(id, type)
    {
-      std::cout << static_cast<const void*>(this)
-         << ".AB::AB()\n";
    }
 
    void say() override
    {
-      std::cout << "AB::say(" << id() << ")\n";
+      std::cout << "AB::say(" 
+                << A::id() << ":"
+                << B::id() << ")\n";
    }
 };
 
 
-BM_DONT_OPTIMIZE void bench(Base* o)
+class BA: public B, public A
 {
-   auto a = dynamic_cast<AB*>(o);
-   if (a)
-      a->say();
-   else
-      std::cout << "Not an AB instance\n";
+public:
+   static constexpr int TBA = 3;
+
+   BA(int id, int type = TBA) noexcept
+      : B(id, type)
+      , A(id, type)
+   {
+   }
+
+   void say() override
+   {
+      std::cout << "BA::say("
+                << A::id() << ":"
+                << B::id() << ")\n";
+   }
+};
+
+
+std::vector<std::unique_ptr<Base>> makeAB(std::size_t n)
+{
+   std::vector<std::unique_ptr<Base>> v;
+   v.reserve(n);
+
+   Benchmark::Random r(0);
+
+   for (std::size_t i = 0; i < n; ++i)
+   {
+      if (r() % 2 == 0)
+         v.emplace_back(new AB(i));
+      else
+         v.emplace_back(new BA(i));
+   }
+
+   return v;
 }
 
 
-} // namedpace
+} // namespace
 
 
 int main()
 {
-   auto o = std::make_unique<AB>(13);
-   bench(o.get());
+   Benchmark::Runner r("RTTI performance", 100000000ULL);
+
+   auto abv = makeAB(1024);
+
+   r.add(
+      "dynamic_cast",
+      1,
+      [&abv](std::uint64_t iterations)
+      {
+         auto c = iterations;
+         std::size_t current = 0;
+         auto count = abv.size();
+         while (c--)
+         {
+            auto o = abv[current].get();
+            auto ab = dynamic_cast<AB*>(o);
+            if (!ab)
+            {
+               auto ba = dynamic_cast<BA*>(o);
+               if (!ba)
+               {
+                  std::terminate();
+               }
+            }
+
+            if (++current == count)
+               current = 0;
+         }
+      }
+   );
+
+   r.add(
+      "typeinfo",
+      1,
+      [&abv](std::uint64_t iterations)
+      {
+         auto c = iterations;
+         std::size_t current = 0;
+         auto count = abv.size();
+         while (c--)
+         {
+            auto o = abv[current].get();
+
+            auto& ty = typeid(*o);
+            if (ty != typeid(AB))
+               if (ty != typeid(BA))
+                  std::terminate();
+
+            if (++current == count)
+               current = 0;
+         }
+      }
+   );
+
+   r.run(std::cout);
 
    return 0;
 }

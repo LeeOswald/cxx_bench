@@ -123,6 +123,23 @@ int main()
       }
    );
 
+   r.add(
+      "try+throw+catch (2 thrd)",
+      2,
+      [&bangs, &dummy](std::uint64_t iterations)
+      {
+         dummy = throwFor(bangs, iterations);
+      }
+   );
+
+   r.add(
+      "try+throw+catch (4 thrd)",
+      4,
+      [&bangs, &dummy](std::uint64_t iterations)
+      {
+         dummy = throwFor(bangs, iterations);
+      }
+   );
 
    r.run(std::cout);
 

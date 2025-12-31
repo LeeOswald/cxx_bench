@@ -127,7 +127,7 @@ std::vector<std::unique_ptr<Base>> makeAB(std::size_t n)
 
    for (std::size_t i = 0; i < n; ++i)
    {
-      if (r() % 2 == 0)
+      if (r(1) == 0)
          v.emplace_back(new AB(i));
       else
          v.emplace_back(new BA(i));

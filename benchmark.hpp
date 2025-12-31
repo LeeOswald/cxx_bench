@@ -12,6 +12,7 @@
 #include <vector>
 
 
+#include <sys/resource.h>
 #include <sys/times.h>
 #include <time.h>
 #include <unistd.h>
@@ -158,7 +159,7 @@ private:
 class ProcessCpuTimes final
 {
 public:
-   using Unit = std::chrono::milliseconds;
+   using Unit = std::chrono::microseconds;
 
    struct Times
    {
@@ -170,36 +171,48 @@ public:
 
    void start() noexcept
    {
-      struct tms t = {};
-      ::times(&t);
+      struct rusage u = {};
+      ::getrusage(RUSAGE_SELF, &u);
 
-      m_uStart = t.tms_utime;
-      m_sStart = t.tms_stime;
+      m_uStart = u.ru_utime.tv_sec;
+      m_uStart *= 1000000ULL;
+      m_uStart += u.ru_utime.tv_usec;
+
+      m_sStart = u.ru_stime.tv_sec;
+      m_sStart *= 1000000ULL;
+      m_sStart += u.ru_stime.tv_usec;
    }
 
    void stop() noexcept
    {
-     struct tms t = {};
-      ::times(&t);
+      struct rusage u = {};
+      ::getrusage(RUSAGE_SELF, &u);
 
-      m_user += t.tms_utime - m_uStart;
-      m_system += t.tms_stime - m_sStart;
+      std::uint64_t uEnd = u.ru_utime.tv_sec;
+      uEnd *= 1000000ULL;
+      uEnd += u.ru_utime.tv_usec;
+
+      std::uint64_t sEnd = u.ru_stime.tv_sec;
+      sEnd *= 1000000ULL;
+      sEnd += u.ru_stime.tv_usec;
+
+      m_user += (uEnd - m_uStart);
+      m_system += (sEnd - m_sStart);
    }
 
    Times value() const noexcept
    {
       return Times {
-        std::chrono::milliseconds{m_user * 1000 / m_freq},
-        std::chrono::milliseconds{m_system * 1000 / m_freq}
+         Unit{m_user},
+         Unit{m_system}
       };
    }
 
 private:
-   long m_freq = ::sysconf(_SC_CLK_TCK);
-   clock_t m_user = {};
-   clock_t m_system = {};
-   clock_t m_uStart = {};
-   clock_t m_sStart = {};
+   std::uint64_t m_user = {};
+   std::uint64_t m_system = {};
+   std::uint64_t m_uStart = {};
+   std::uint64_t m_sStart = {};
 };
 
 
@@ -392,7 +405,7 @@ public:
          << " Total, µs |"
          << " Op, ns |"
          << "    %    |"
-         << " CPU (u/s), ms"
+         << " CPU (u/s), µs"
          << std::endl;
       line();
 

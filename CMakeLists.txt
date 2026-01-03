@@ -6,9 +6,6 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 
-add_executable(atomics atomics.cpp)
-target_compile_options(atomics  PRIVATE -O3 -fno-rtti)
-
 add_executable(ref_count ref_count.cpp)
 target_compile_options(ref_count PRIVATE -O3 -fno-rtti)
 

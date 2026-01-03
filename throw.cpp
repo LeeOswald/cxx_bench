@@ -114,31 +114,25 @@ int main()
       1
    );
 
+   auto ttc = [&bangs, &dummy](std::uint64_t iterations)
+   {
+      dummy = throwFor(bangs, iterations);
+   };
+
    r.add(
       "try+throw+catch",
       1,
-      [&bangs, &dummy](std::uint64_t iterations)
-      {
-         dummy = throwFor(bangs, iterations);
-      }
+      ttc
    );
 
    r.add(
-      "try+throw+catch (2 thrd)",
       2,
-      [&bangs, &dummy](std::uint64_t iterations)
-      {
-         dummy = throwFor(bangs, iterations);
-      }
+      ttc
    );
 
    r.add(
-      "try+throw+catch (4 thrd)",
       4,
-      [&bangs, &dummy](std::uint64_t iterations)
-      {
-         dummy = throwFor(bangs, iterations);
-      }
+      ttc
    );
 
    r.run(std::cout);

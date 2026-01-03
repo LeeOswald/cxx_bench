@@ -382,6 +382,12 @@ public:
             << "----------------------" << std::endl;
       };
 
+      auto sub_line = [&ss]()
+      {
+         ss << "   ----------------‐--------------"
+            << "----------------------" << std::endl;
+      };
+
       auto thickLine = [&ss]()
       {
          ss << "≈================================="
@@ -443,7 +449,7 @@ public:
          if (bm.group)
          {
             ss << " " << bm.name << std::endl;
-            line();
+            sub_line();
          }
 
          auto du = bm.timings.threadCpuTime.count();
@@ -468,13 +474,13 @@ public:
          if (bm.timings.processCpuTimes)
          {
             auto u =
-               bm.timings.processCpuTimes->user.count() / bm.threads;
-            u /= 1000;
+               bm.timings.processCpuTimes->user.count() / 1000;
+
             ss << " | " << u;
 
             auto s =
-               bm.timings.processCpuTimes->system.count() / bm.threads;
-            s /= 1000;
+               bm.timings.processCpuTimes->system.count() / 1000;
+
             if (s > 0)
                ss << " / " << s;
          }

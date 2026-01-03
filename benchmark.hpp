@@ -224,7 +224,7 @@ struct Timings final
 
 
 template <typename T>
-concept BenchmarkItem = 
+concept BenchmarkItem =
    std::is_invocable_v<T, std::uint64_t>;
 
 
@@ -351,16 +351,29 @@ public:
    void add(
       auto&& name,
       unsigned threads,
-      BenchmarkItem auto&&  work
+      BenchmarkItem auto&& work
    )
    {
       m_bm.emplace_back(
          std::forward<decltype(name)>(name),
          threads,
-         std::forward<decltype(work)>(work)
+         std::forward<decltype(work)>(work),
+         true
       );
    }
 
+   void add(
+      unsigned threads,
+      BenchmarkItem auto&& work
+   )
+   {
+      m_bm.emplace_back(
+         "",
+         threads,
+         std::forward<decltype(work)>(work),
+         false
+      );
+   }
    virtual void run(std::ostream& ss)
    {
       auto line = [&ss]()
@@ -386,12 +399,20 @@ public:
       if (m_bm.empty())
          return;
 
-      std::size_t id = 0;
+      std::string name;
+      std::size_t index = 0;
+
       for (auto& bm: m_bm)
       {
-         ss << "#" << id++ << ": [" << bm.name << "]";
+         if (bm.group)
+            name = bm.name;
+
+         ss << "#" << (index + 1) << " / " << m_bm.size()
+            << ": " << name;
+
          if (bm.threads > 1)
-            ss << " × " << bm.threads << " threads";
+            ss << " ×" << bm.threads << " threads";
+
          ss << std::endl;
 
          bm.timings = ::Benchmark::run(
@@ -399,29 +420,38 @@ public:
             bm.work,
             m_iterations
          );
+
+         ++index;
       }
 
-      line();
-      ss << "  # |"
-         << " × |"
+      ss << " × |"
          << " Total, µs |"
          << " Op, ns |"
          << "    %    |"
          << " CPU (u/s), ms"
          << std::endl;
+
       line();
 
       auto best = m_bm.front().timings.threadCpuTime.count();
 
-      id = 0;
+      std::size_t id = 0;
       for (auto& bm: m_bm)
       {
+         if (id == 0 || bm.group)
+            line();
+
+         if (bm.group)
+         {
+            ss << " " << bm.name << std::endl;
+            line();
+         }
+
          auto du = bm.timings.threadCpuTime.count();
          auto op = du / m_iterations;
          auto percent = du * 100.0 / double(best);
 
-         ss << std::setw(3) << id++ << " |"
-            << std::setw(2) << bm.threads << " |"
+         ss << std::setw(2) << bm.threads << " |"
             << std::setw(10) << (du / 1000) <<  " |"
             << std::setw(7) << op << " | ";
 
@@ -438,15 +468,20 @@ public:
 
          if (bm.timings.processCpuTimes)
          {
-            auto u = bm.timings.processCpuTimes->user.count() / 1000;
+            auto u =
+               bm.timings.processCpuTimes->user.count() / bm.threads;
+            u /= 1000;
             ss << " | " << u;
 
-            auto s = bm.timings.processCpuTimes->system.count() / 1000;
+            auto s =
+               bm.timings.processCpuTimes->system.count() / bm.threads;
+            s /= 1000;
             if (s > 0)
                ss << " / " << s;
          }
 
          ss << std::endl;
+         ++id;
       }
 
       line();
@@ -458,16 +493,19 @@ private:
       std::string name;
       unsigned threads;
       std::function<void(std::uint64_t)> work;
+      bool group;
       Timings timings;
 
       Benchmark(
          std::string_view name,
          unsigned threads,
-         std::function<void(std::uint64_t)>&& work
+         std::function<void(std::uint64_t)>&& work,
+         bool group
       )
          : name(name)
          , threads(threads)
          , work(std::move(work))
+         , group(group)
       {}
    };
 

@@ -424,14 +424,13 @@ public:
          ++index;
       }
 
+      line();
       ss << " × |"
          << " Total, µs |"
          << " Op, ns |"
          << "    %    |"
          << " CPU (u/s), ms"
          << std::endl;
-
-      line();
 
       auto best = m_bm.front().timings.threadCpuTime.count();
 

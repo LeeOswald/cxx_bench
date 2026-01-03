@@ -390,6 +390,8 @@ public:
       for (auto& bm: m_bm)
       {
          ss << "#" << id++ << ": [" << bm.name << "]";
+         if (bm.threads > 1)
+            ss << " × " << bm.threads << " threads";
          ss << std::endl;
 
          bm.timings = ::Benchmark::run(
@@ -405,7 +407,7 @@ public:
          << " Total, µs |"
          << " Op, ns |"
          << "    %    |"
-         << " CPU (u/s), µs"
+         << " CPU (u/s), ms"
          << std::endl;
       line();
 
@@ -421,16 +423,27 @@ public:
          ss << std::setw(3) << id++ << " |"
             << std::setw(2) << bm.threads << " |"
             << std::setw(10) << (du / 1000) <<  " |"
-            << std::setw(7) << op << " | "
-            << std::setw(7) << std::setprecision(2) << std::fixed
-            << percent;
+            << std::setw(7) << op << " | ";
+
+         if (percent < 200)
+         {
+            ss << std::setw(7) << std::setprecision(2) << std::fixed
+               << percent;
+         }
+         else
+         {
+            ss << std::setw(7)
+               << unsigned(percent);
+         }
 
          if (bm.timings.processCpuTimes)
          {
-            ss << " | "
-               << bm.timings.processCpuTimes->user.count()
-               << "/" 
-               << bm.timings.processCpuTimes->system.count();
+            auto u = bm.timings.processCpuTimes->user.count() / 1000;
+            ss << " | " << u;
+
+            auto s = bm.timings.processCpuTimes->system.count() / 1000;
+            if (s > 0)
+               ss << " / " << s;
          }
 
          ss << std::endl;

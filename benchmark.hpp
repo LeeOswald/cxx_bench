@@ -1,5 +1,8 @@
 #pragma once
 
+#include "cputime.hpp"
+#include "timestamp.hpp"
+
 #include <chrono>
 #include <concepts>
 #include <condition_variable>
@@ -24,71 +27,6 @@
 
 namespace Benchmark
 {
-
-using Nanoseconds = std::chrono::nanoseconds;
-
-
-class DefaultTimestampProvider final
-{
-public:
-   using Unit = Nanoseconds;
-
-   constexpr DefaultTimestampProvider() noexcept = default;
-
-   Nanoseconds operator()() const noexcept
-   {
-      auto delta = Clock::now() - pivot();
-      return std::chrono::duration_cast<Nanoseconds>(delta);
-   }
-
-private:
-   using Clock = std::chrono::high_resolution_clock;
-   using TimePoint = Clock::time_point;
-
-   static TimePoint pivot() noexcept
-   {
-      static TimePoint now = Clock::now();
-      return now;
-   }
-};
-
-
-class PreciseTimestampProvider final
-{
-public:
-   using Unit = Nanoseconds;
-
-   constexpr PreciseTimestampProvider() noexcept = default;
-
-   Nanoseconds operator()() noexcept
-   {
-      struct timespec t = {};
-      ::clock_gettime(CLOCK_MONOTONIC_RAW, &t);
-      std::uint64_t v = t.tv_sec;
-      v *= 1000000000ULL;
-      v += t.tv_nsec;
-      return Nanoseconds{ v };
-   }
-};
-
-
-class ThreadCpuTimeProvider final
-{
-public:
-   using Unit = Nanoseconds;
-
-   constexpr ThreadCpuTimeProvider() noexcept = default;
-
-   Nanoseconds operator()() noexcept
-   {
-      struct timespec t = {};
-      ::clock_gettime(CLOCK_THREAD_CPUTIME_ID, &t);
-      std::uint64_t v = t.tv_sec;
-      v *= 1000000000ULL;
-      v += t.tv_nsec;
-      return Nanoseconds{ v };
-   }
-};
 
 
 template <class Provider>
@@ -187,7 +125,7 @@ private:
 
 struct Timings final
 {
-   Nanoseconds threadCpuTime;
+   std::chrono::nanoseconds threadCpuTime;
    std::optional<ProcessCpuTimes::Times> processCpuTimes;
 };
 
@@ -294,7 +232,7 @@ inline Timings run(
 
 
    // average per-thread CPU time
-   Nanoseconds averageCpu = {};
+   std::chrono::nanoseconds averageCpu = {};
    for (auto& cpu : threadCpu)
    {
       averageCpu += cpu.value();

@@ -1,9 +1,32 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(test VERSION 1.0)
+project(benchmark VERSION 1.0)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    add_definitions(-DBM_64=1)
+elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
+    add_definitions(-DBM_32=1)
+else()
+    message(FATAL_ERROR "Unsupported bitness")
+endif()
+
+# detect OS
+if(WIN32)
+    add_definitions(-D_WIN32_WINNT=0x0602)
+    add_definitions(-DBM_WINDOWS=1)
+elseif(ANDROID)
+    add_definitions(-DBM_POSIX=1 -DBM_ANDROID=1)
+else()
+    message(FATAL_ERROR "Unsupported OS")
+endif()
+
+if(MSVC)
+    add_compile_options("/utf-8")
+endif()
 
 
 add_executable(ref_count ref_count.cpp)

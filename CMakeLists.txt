@@ -29,17 +29,7 @@ if(MSVC)
 endif()
 
 
-add_library(benchmark
-   benchmark/benchmark.hpp
-   benchmark/cputime.hpp
-   benchmark/runner.hpp
-   benchmark/random.hpp
-   benchmark/stopwatch.hpp
-   benchmark/terminal.hpp
-   benchmark/runner.cpp
-)
-
-target_compile_options(benchmark PRIVATE -O3 -fno-rtti)
+add_subdirectory(benchmark)
 
 add_executable(ref_count ref_count.cpp)
 target_compile_options(ref_count PRIVATE -O3 -fno-rtti)

@@ -2,8 +2,8 @@
 #include <iostream>
 #include <mutex>
 
-#include "runner.hpp"
-#include "random.hpp"
+#include "benchmark/runner.hpp"
+#include "benchmark/random.hpp"
 
 #include <pthread.h>
 

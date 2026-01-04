@@ -29,19 +29,32 @@ if(MSVC)
 endif()
 
 
-add_executable(ref_count ref_count.cpp runner.cpp)
-target_compile_options(ref_count PRIVATE -O3 -fno-rtti)
-
-add_executable(calls 
-   calls.cpp
-   calls_impl.cpp
-   runner.cpp
+add_library(benchmark
+   benchmark/benchmark.hpp
+   benchmark/cputime.hpp
+   benchmark/runner.hpp
+   benchmark/random.hpp
+   benchmark/stopwatch.hpp
+   benchmark/terminal.hpp
+   benchmark/runner.cpp
 )
+
+target_compile_options(benchmark PRIVATE -O3 -fno-rtti)
+
+add_executable(ref_count ref_count.cpp)
+target_compile_options(ref_count PRIVATE -O3 -fno-rtti)
+target_link_libraries(ref_count PRIVATE benchmark)
+
+add_executable(calls calls.cpp calls_impl.cpp)
 target_compile_options(calls PRIVATE -O3 -fno-rtti)
+target_link_libraries(calls PRIVATE benchmark)
 
-add_executable(rtti rtti.cpp runner.cpp)
+add_executable(rtti rtti.cpp)
 target_compile_options(rtti PRIVATE -O3)
+target_link_libraries(rtti PRIVATE benchmark)
 
-add_executable(throw throw.cpp runner.cpp)
+add_executable(throw throw.cpp)
 target_compile_options(throw PRIVATE -Og -fno-rtti)
 target_link_options(throw PRIVATE -rdynamic)
+target_link_libraries(throw PRIVATE benchmark)
+

@@ -3,8 +3,8 @@
 #include <vector>
 #include <typeinfo>
 
-#include "runner.hpp"
-#include "random.hpp"
+#include "benchmark/runner.hpp"
+#include "benchmark/random.hpp"
 
 
 namespace

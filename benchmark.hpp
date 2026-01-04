@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cputime.hpp"
+#include "stopwatch.hpp"
 #include "timestamp.hpp"
 
 #include <chrono>
@@ -15,12 +16,6 @@
 #include <vector>
 
 
-#include <sys/resource.h>
-#include <sys/times.h>
-#include <time.h>
-#include <unistd.h>
-
-
 #define BM_DONT_OPTIMIZE \
    __attribute__((noinline)) __attribute__((optnone))
 
@@ -29,104 +24,10 @@ namespace Benchmark
 {
 
 
-template <class Provider>
-class Stopwatch
-{
-public:
-   using Unit = typename Provider::Unit;
-
-   constexpr Stopwatch(Provider pr = {})
-      : m_provider(pr)
-   {}
-
-   void start() noexcept
-   {
-      m_started = m_provider();
-   }
-
-   Unit stop() noexcept
-   {
-      auto delta = m_provider() - m_started;
-      m_elapsed += delta;
-      return delta;
-   }
-
-   Unit value() const noexcept
-   {
-      return m_elapsed;
-   }
-
-private:
-   Provider m_provider;
-   Unit m_started = {};
-   Unit m_elapsed = {};
-};
-
-
-class ProcessCpuTimes final
-{
-public:
-   using Unit = std::chrono::microseconds;
-
-   struct Times
-   {
-      Unit user;
-      Unit system;
-   };
-
-   constexpr ProcessCpuTimes() noexcept = default;
-
-   void start() noexcept
-   {
-      struct rusage u = {};
-      ::getrusage(RUSAGE_SELF, &u);
-
-      m_uStart = u.ru_utime.tv_sec;
-      m_uStart *= 1000000ULL;
-      m_uStart += u.ru_utime.tv_usec;
-
-      m_sStart = u.ru_stime.tv_sec;
-      m_sStart *= 1000000ULL;
-      m_sStart += u.ru_stime.tv_usec;
-   }
-
-   void stop() noexcept
-   {
-      struct rusage u = {};
-      ::getrusage(RUSAGE_SELF, &u);
-
-      std::uint64_t uEnd = u.ru_utime.tv_sec;
-      uEnd *= 1000000ULL;
-      uEnd += u.ru_utime.tv_usec;
-
-      std::uint64_t sEnd = u.ru_stime.tv_sec;
-      sEnd *= 1000000ULL;
-      sEnd += u.ru_stime.tv_usec;
-
-      m_user += (uEnd - m_uStart);
-      m_system += (sEnd - m_sStart);
-   }
-
-   Times value() const noexcept
-   {
-      return Times {
-         Unit{m_user},
-         Unit{m_system}
-      };
-   }
-
-private:
-   std::uint64_t m_user = {};
-   std::uint64_t m_system = {};
-   std::uint64_t m_uStart = {};
-   std::uint64_t m_sStart = {};
-};
-
-
 struct Timings final
 {
    std::chrono::nanoseconds threadCpuTime;
-   std::optional<ProcessCpuTimes::Times> processCpuTimes;
+   ProcessCpuUsageProvider::Times processCpuUsage;
 };
 
 
@@ -140,7 +41,7 @@ inline Timings run(
    std::uint64_t iterations
 )
 {
-   ProcessCpuTimes pc;
+   ProcessCpuUsageProvider pc;
    Stopwatch<ThreadCpuTimeProvider> tc;
 
    pc.start();
@@ -167,7 +68,7 @@ inline Timings run(
    if (threads < 2)
       return run(work, iterations);
 
-   ProcessCpuTimes processCpu;
+   ProcessCpuUsageProvider processCpu;
 
    std::vector<Stopwatch<ThreadCpuTimeProvider>> threadCpu;
    threadCpu.resize(threads);
@@ -378,15 +279,14 @@ public:
                << unsigned(percent);
          }
 
-         if (bm.timings.processCpuTimes)
          {
             auto u =
-               bm.timings.processCpuTimes->user.count() / 1000;
+               bm.timings.processCpuUsage.user.count() / 1000;
 
             ss << " | " << u;
 
             auto s =
-               bm.timings.processCpuTimes->system.count() / 1000;
+               bm.timings.processCpuUsage.system.count() / 1000;
 
             if (s > 0)
                ss << " / " << s;

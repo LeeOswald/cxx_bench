@@ -327,7 +327,7 @@ void run()
       }
    );
 
-   r.run(std::cout);
+   r.run();
 }
 
 

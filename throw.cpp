@@ -135,7 +135,7 @@ int main()
       ttc
    );
 
-   r.run(std::cout);
+   r.run();
 
    return 0;
 }

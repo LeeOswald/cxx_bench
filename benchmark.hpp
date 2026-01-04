@@ -2,6 +2,7 @@
 
 #include "cputime.hpp"
 #include "stopwatch.hpp"
+#include "terminal.hpp"
 #include "timestamp.hpp"
 
 #include <chrono>
@@ -10,8 +11,6 @@
 #include <functional>
 #include <iomanip>
 #include <mutex>
-#include <optional>
-#include <ostream>
 #include <thread>
 #include <vector>
 
@@ -151,7 +150,8 @@ public:
    Runner(auto&& name, std::uint64_t iterations)
       : m_name{std::forward<decltype(name)>(name)}
       , m_iterations(iterations)
-   {}
+   {
+   }
 
    void add(
       auto&& name,
@@ -180,33 +180,17 @@ public:
       );
    }
 
-   virtual void run(std::ostream& ss)
+   virtual void run()
    {
-      auto line = [&ss]()
-      {
-         ss << "-------------------‐--------------"
-            << "----------------------" << std::endl;
-      };
+      m_console.line('=');
 
-      auto sub_line = [&ss]()
-      {
-         ss << "   ----------------‐--------------"
-            << "----------------------" << std::endl;
-      };
-
-      auto thickLine = [&ss]()
-      {
-         ss << "≈================================="
-            << "======================" << std::endl;
-      };
-
-      thickLine();
-      ss << m_name;
+      out() << m_name;
       if (m_iterations > 0)
-         ss << " (" << m_iterations << " iterations)";
+         out() << " (" << m_iterations << " iterations)";
 
-      ss <<  std::endl;
-      line();
+      out() <<  std::endl;
+
+      m_console.line('-');
 
       if (m_bm.empty())
          return;
@@ -219,13 +203,13 @@ public:
          if (bm.group)
             name = bm.name;
 
-         ss << "#" << (index + 1) << " / " << m_bm.size()
+         out() << "#" << (index + 1) << " / " << m_bm.size()
             << ": " << name;
 
          if (bm.threads > 1)
-            ss << " ×" << bm.threads << " threads";
+            out() << " ×" << bm.threads << " threads";
 
-         ss << std::endl;
+         out() << std::endl;
 
          bm.timings = ::Benchmark::run(
             bm.threads,
@@ -236,8 +220,9 @@ public:
          ++index;
       }
 
-      line();
-      ss << " × |"
+      m_console.line('-');
+
+      out() << " × |"
          << " Total, µs |"
          << " Op, ns |"
          << "    %    |"
@@ -250,30 +235,31 @@ public:
       for (auto& bm: m_bm)
       {
          if (id == 0 || bm.group)
-            line();
+            m_console.line('-');
 
          if (bm.group)
          {
-            ss << " " << bm.name << std::endl;
-            sub_line();
+            out() << " " << bm.name << std::endl;
+            out() << "   ";
+            m_console.line('-', m_console.width() - 3);
          }
 
          auto du = bm.timings.time.count();
          auto op = du / m_iterations;
          auto percent = du * 100.0 / double(best);
 
-         ss << std::setw(2) << bm.threads << " |"
+         out() << std::setw(2) << bm.threads << " |"
             << std::setw(10) << (du / 1000) <<  " |"
             << std::setw(7) << op << " | ";
 
          if (percent < 200)
          {
-            ss << std::setw(7) << std::setprecision(2) << std::fixed
+            out() << std::setw(7) << std::setprecision(2) << std::fixed
                << percent;
          }
          else
          {
-            ss << std::setw(7)
+            out() << std::setw(7)
                << unsigned(percent);
          }
 
@@ -281,20 +267,25 @@ public:
             auto u =
                bm.timings.cpu.user.count() / 1000;
 
-            ss << " | " << u;
+            out() << " | " << u;
 
             auto s =
                bm.timings.cpu.system.count() / 1000;
 
             if (s > 0)
-               ss << " / " << s;
+               out() << " / " << s;
          }
 
-         ss << std::endl;
+         out() << std::endl;
          ++id;
       }
 
-      line();
+      m_console.line('-');
+   }
+
+   std::ostream& out() noexcept
+   {
+      return m_console.out();
    }
 
 private:
@@ -319,6 +310,7 @@ private:
       {}
    };
 
+   Terminal m_console;
    std::string m_name;
    std::uint64_t m_iterations;
    std::vector<Benchmark> m_bm;

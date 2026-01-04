@@ -326,7 +326,7 @@ int main()
       pmutexed
    );
 
-   r.run(std::cout);
+   r.run();
 
    return 0;
 }

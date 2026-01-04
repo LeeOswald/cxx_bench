@@ -197,7 +197,7 @@ int main()
       }
    );
 
-   r.run(std::cout);
+   r.run();
 
    return 0;
 }

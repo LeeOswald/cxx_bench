@@ -50,4 +50,11 @@ public:
 #endif
 
 
+#if BM_POSIX
+using TimestampProvider = PosixTimestampProvider;
+#else
+using TimestampProvider = DefaultTimestampProvider;
+#endif
+
+
 } // namespace

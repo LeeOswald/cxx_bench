@@ -16,8 +16,11 @@
 #include <vector>
 
 
+#define BM_NOINLINE \
+   __attribute__((noinline))
+
 #define BM_DONT_OPTIMIZE \
-   __attribute__((noinline)) __attribute__((optnone))
+  __attribute__((optnone))
 
 
 namespace Benchmark
@@ -26,8 +29,11 @@ namespace Benchmark
 
 struct Timings final
 {
-   std::chrono::nanoseconds threadCpuTime;
-   ProcessCpuUsageProvider::Times processCpuUsage;
+   using Stopwatch = Stopwatch<TimestampProvider>;
+   using CpuUsageProvider = ProcessCpuUsageProvider;
+
+   Stopwatch::Unit time;
+   CpuUsageProvider::Times cpu;
 };
 
 
@@ -41,20 +47,20 @@ inline Timings run(
    std::uint64_t iterations
 )
 {
-   ProcessCpuUsageProvider pc;
-   Stopwatch<ThreadCpuTimeProvider> tc;
+   Timings::CpuUsageProvider cpu;
+   Timings::Stopwatch sw;
 
-   pc.start();
-   tc.start();
+   cpu.start();
+   sw.start();
 
    work(iterations);
 
-   tc.stop();
-   pc.stop();
+   sw.stop();
+   cpu.stop();
 
    return Timings {
-      tc.value(),
-      pc.value()
+      sw.value(),
+      cpu.value()
    };
 }
 
@@ -68,10 +74,8 @@ inline Timings run(
    if (threads < 2)
       return run(work, iterations);
 
-   ProcessCpuUsageProvider processCpu;
-
-   std::vector<Stopwatch<ThreadCpuTimeProvider>> threadCpu;
-   threadCpu.resize(threads);
+   Timings::CpuUsageProvider cpu;
+   Timings::Stopwatch sw;
 
    std::vector<std::jthread> workers;
    workers.reserve(threads);
@@ -86,8 +90,8 @@ inline Timings run(
       workers.emplace_back(
          [
             id,
-            &processCpu,
-            &threadCpu,
+            &cpu,
+            &sw,
             &mtx,
             &cv,
             &start,
@@ -104,17 +108,19 @@ inline Timings run(
 
             // first stsrted thread starts the global timer
             if (active.fetch_add(1, std::memory_order_acq_rel) == 0)
-               processCpu.start();
-
-            threadCpu[id].start();
+            {
+               cpu.start();
+               sw.start();
+            }
 
             work(iterations);
 
-            threadCpu[id].stop();
-
             // the last active thread stops the global timer
             if (active.fetch_sub(1, std::memory_order_acq_rel) == 1)
-               processCpu.stop();
+            {
+               sw.stop();
+               cpu.stop();
+            }
          }
       );
    }
@@ -132,18 +138,9 @@ inline Timings run(
       w.join();
 
 
-   // average per-thread CPU time
-   std::chrono::nanoseconds averageCpu = {};
-   for (auto& cpu : threadCpu)
-   {
-      averageCpu += cpu.value();
-   }
-
-   averageCpu /= threadCpu.size();
-
    return Timings {
-      averageCpu,
-      processCpu.value()
+      sw.value(),
+      cpu.value()
    };
 }
 
@@ -182,6 +179,7 @@ public:
          false
       );
    }
+
    virtual void run(std::ostream& ss)
    {
       auto line = [&ss]()
@@ -246,7 +244,7 @@ public:
          << " CPU (u/s), ms"
          << std::endl;
 
-      auto best = m_bm.front().timings.threadCpuTime.count();
+      auto best = m_bm.front().timings.time.count();
 
       std::size_t id = 0;
       for (auto& bm: m_bm)
@@ -260,7 +258,7 @@ public:
             sub_line();
          }
 
-         auto du = bm.timings.threadCpuTime.count();
+         auto du = bm.timings.time.count();
          auto op = du / m_iterations;
          auto percent = du * 100.0 / double(best);
 
@@ -281,12 +279,12 @@ public:
 
          {
             auto u =
-               bm.timings.processCpuUsage.user.count() / 1000;
+               bm.timings.cpu.user.count() / 1000;
 
             ss << " | " << u;
 
             auto s =
-               bm.timings.processCpuUsage.system.count() / 1000;
+               bm.timings.cpu.system.count() / 1000;
 
             if (s > 0)
                ss << " / " << s;

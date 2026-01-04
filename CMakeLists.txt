@@ -29,18 +29,19 @@ if(MSVC)
 endif()
 
 
-add_executable(ref_count ref_count.cpp)
+add_executable(ref_count ref_count.cpp runner.cpp)
 target_compile_options(ref_count PRIVATE -O3 -fno-rtti)
 
 add_executable(calls 
    calls.cpp
    calls_impl.cpp
+   runner.cpp
 )
 target_compile_options(calls PRIVATE -O3 -fno-rtti)
 
-add_executable(rtti rtti.cpp)
+add_executable(rtti rtti.cpp runner.cpp)
 target_compile_options(rtti PRIVATE -O3)
 
-add_executable(throw throw.cpp)
+add_executable(throw throw.cpp runner.cpp)
 target_compile_options(throw PRIVATE -Og -fno-rtti)
 target_link_options(throw PRIVATE -rdynamic)

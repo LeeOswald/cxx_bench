@@ -3,7 +3,7 @@
 #include <iostream>
 #include <vector>
 
-#include "benchmark.hpp"
+#include "runner.hpp"
 
 
 namespace

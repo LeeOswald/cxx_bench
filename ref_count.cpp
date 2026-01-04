@@ -2,7 +2,7 @@
 #include <iostream>
 #include <mutex>
 
-#include "benchmark.hpp"
+#include "runner.hpp"
 #include "random.hpp"
 
 #include <pthread.h>

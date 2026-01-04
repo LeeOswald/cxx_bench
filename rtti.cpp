@@ -4,6 +4,7 @@
 #include <typeinfo>
 
 #include "benchmark.hpp"
+#include "random.hpp"
 
 
 namespace

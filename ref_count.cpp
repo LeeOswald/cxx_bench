@@ -3,6 +3,7 @@
 #include <mutex>
 
 #include "benchmark.hpp"
+#include "random.hpp"
 
 #include <pthread.h>
 

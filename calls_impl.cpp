@@ -1,5 +1,6 @@
 
 #include "calls_impl.hpp"
+#include "random.hpp"
 
 
 namespace Calls

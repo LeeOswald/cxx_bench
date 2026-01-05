@@ -150,7 +150,6 @@ int main()
 
    r.add(
       "dynamic_cast",
-      1,
       [&abv](Benchmark::Counter iterations, Benchmark::Tid)
          -> Benchmark::Counter
       {
@@ -180,7 +179,6 @@ int main()
 
    r.add(
       "typeinfo",
-      1,
       [&abv](Benchmark::Counter iterations, Benchmark::Tid)
          -> Benchmark::Counter
       {

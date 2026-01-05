@@ -3,7 +3,7 @@
 #include "benchmark.hpp"
 #include "terminal.hpp"
 
-
+#include <initializer_list>
 #include <vector>
 
 
@@ -22,29 +22,23 @@ public:
 
    void add(
       std::string_view name,
-      unsigned threads,
-      SimpleBenchmark auto&& work
+      SimpleBenchmark auto&& work,
+      std::initializer_list<unsigned> threads = {1}
    )
    {
-      m_items.emplace_back(
-         name,
-         threads,
-         SimpleFixture::make(work),
-         true
-      );
-   }
+      bool first = true;
+      for (auto n : threads)
+      {
+         m_items.emplace_back(
+            name,
+            n,
+            SimpleFixture::make(std::forward<decltype(work)>(work)),
+            first
+         );
 
-   void add(
-      unsigned threads,
-      SimpleBenchmark auto&& work
-   )
-   {
-      m_items.emplace_back(
-         "",
-         threads,
-         SimpleFixture::make(work),
-         false
-      );
+         if (first)
+            first = false;
+      }
    }
 
    virtual void run();

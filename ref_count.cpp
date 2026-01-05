@@ -143,7 +143,6 @@ int main()
 
    r.add(
       "non-atomic counter",
-      1,
       [](Benchmark::Counter iterations, Benchmark::Tid)
       {
          auto v = nonAtomic();
@@ -153,7 +152,6 @@ int main()
 
    r.add(
       "volatile non-atomic counter",
-      1,
       [](Benchmark::Counter iterations, Benchmark::Tid)
       {
          auto v = nonAtomicVolatile();
@@ -169,23 +167,8 @@ int main()
 
    r.add(
       "atomic counter (relaxed)",
-      1,
-      relaxed
-   );
-
-   r.add(
-      2,
-      relaxed
-   );
-
-   r.add(
-      4,
-      relaxed
-   );
-
-   r.add(
-      8,
-      relaxed
+      relaxed,
+      { 1, 2, 4, 8 }
    );
 
    auto acq_rel = [](Benchmark::Counter iterations, Benchmark::Tid)
@@ -196,23 +179,8 @@ int main()
 
    r.add(
       "atomic counter (acq_rel)",
-      1,
-      acq_rel
-   );
-
-   r.add(
-      2,
-      acq_rel
-   );
-
-   r.add(
-      4,
-      acq_rel
-   );
-
-   r.add(
-      8,
-      acq_rel
+      acq_rel,
+      { 1, 2, 4, 8 }
    );
 
    auto seq_cst = [](Benchmark::Counter iterations, Benchmark::Tid)
@@ -223,23 +191,8 @@ int main()
 
    r.add(
       "atomic counter (seq_cst)",
-      1,
-      seq_cst
-   );
-
-   r.add(
-      2,
-      seq_cst
-   );
-
-   r.add(
-      4,
-      seq_cst
-   );
-
-   r.add(
-      8,
-      seq_cst
+      seq_cst,
+      { 1, 2, 4, 8 }
    );
 
    auto mutexed = [](Benchmark::Counter iterations, Benchmark::Tid)
@@ -250,23 +203,8 @@ int main()
 
    r.add(
       "counter + mutex",
-      1,
-      mutexed
-   );
-
-   r.add(
-      2,
-      mutexed
-   );
-
-   r.add(
-      4,
-      mutexed
-   );
-
-   r.add(
-      8,
-      mutexed
+      mutexed,
+      { 1, 2, 4, 8 }
    );
 
    r.run();

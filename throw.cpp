@@ -91,7 +91,6 @@ int main()
 
    r.add(
       "baseline",
-      1,
       [&nobangs, &dummy](Benchmark::Counter iterations, Benchmark::Tid)
          -> Benchmark::Counter
       {
@@ -102,7 +101,6 @@ int main()
 
    r.add(
       "try+catch (xcpt not fired)",
-      1,
       [&nobangs, &dummy](Benchmark::Counter iterations, Benchmark::Tid)
          -> Benchmark::Counter
       {
@@ -127,18 +125,8 @@ int main()
 
    r.add(
       "try+throw+catch",
-      1,
-      ttc
-   );
-
-   r.add(
-      2,
-      ttc
-   );
-
-   r.add(
-      4,
-      ttc
+      ttc,
+      { 1, 2, 4, 8 }
    );
 
    r.run();

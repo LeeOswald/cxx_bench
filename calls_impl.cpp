@@ -124,7 +124,6 @@ void run()
 
    r.add(
       "free function",
-      1,
       [&ff](Benchmark::Counter iterations, Benchmark::Tid)
          -> Benchmark::Counter
       {
@@ -146,7 +145,6 @@ void run()
 
    r.add(
       "class  method",
-      1,
       [&abc](Benchmark::Counter iterations, Benchmark::Tid)
          -> Benchmark::Counter
       {
@@ -166,7 +164,6 @@ void run()
 
    r.add(
       "virtual method",
-      1,
       [&abc](Benchmark::Counter iterations, Benchmark::Tid)
          -> Benchmark::Counter
       {
@@ -186,7 +183,6 @@ void run()
 
    r.add(
       "pseudo-virtual method",
-      1,
       [&abc](Benchmark::Counter iterations, Benchmark::Tid)
          -> Benchmark::Counter
       {
@@ -207,7 +203,6 @@ void run()
 
    r.add(
       "pImpl method",
-      1,
       [&abc](Benchmark::Counter iterations, Benchmark::Tid)
          -> Benchmark::Counter
       {
@@ -229,7 +224,6 @@ void run()
 
    r.add(
       "std::function -> free function",
-      1,
       [&ff, &fun](Benchmark::Counter iterations, Benchmark::Tid)
          -> Benchmark::Counter
       {
@@ -256,7 +250,6 @@ void run()
 
    r.add(
       "std::function + std::bind -> method",
-      1,
       [&abc, &fun0](Benchmark::Counter iterations, Benchmark::Tid)
          -> Benchmark::Counter
       {
@@ -284,7 +277,6 @@ void run()
 
    r.add(
       "std::function + std::bind -> virtual method",
-      1,
       [&abc, &fun1](Benchmark::Counter iterations, Benchmark::Tid)
          -> Benchmark::Counter
       {
@@ -311,7 +303,6 @@ void run()
 
    r.add(
       "std::function + lambda -> method",
-      1,
       [&abc, &lam0](Benchmark::Counter iterations, Benchmark::Tid)
          -> Benchmark::Counter
       {
@@ -338,7 +329,6 @@ void run()
 
    r.add(
       "std::function + lambda -> virtual method",
-      1,
       [&abc, &lam1](Benchmark::Counter iterations, Benchmark::Tid)
          -> Benchmark::Counter
       {

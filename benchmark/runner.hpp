@@ -26,19 +26,24 @@ public:
       std::initializer_list<unsigned> threads = {1}
    )
    {
-      bool first = true;
-      for (auto n : threads)
-      {
-         m_items.emplace_back(
-            name,
-            n,
-            SimpleFixture::make(std::forward<decltype(work)>(work)),
-            first
-         );
+      m_bm.emplace_back(
+         name,
+         threads,
+         SimpleFixture::make(std::forward<decltype(work)>(work))
+      );
+   }
 
-         if (first)
-            first = false;
-      }
+   void add(
+      std::string_view name,
+      Fixture::Ptr&& work,
+      std::initializer_list<unsigned> threads = {1}
+   )
+   {
+      m_bm.emplace_back(
+         name,
+         threads,
+         std::move(work)
+      );
    }
 
    virtual void run();
@@ -49,31 +54,43 @@ public:
    }
 
 private:
-   struct Item
+   struct Bm
    {
       std::string name;
-      unsigned threads;
+      std::vector<unsigned> threads;
       Fixture::Ptr work;
-      bool group;
-      Data data;
+      std::vector<Data> data;
 
-      Item(
+      Bm(
          std::string_view name,
-         unsigned threads,
-         Fixture::Ptr&& work,
-         bool group
+         std::initializer_list<unsigned> threads,
+         Fixture::Ptr&& work
       )
          : name(name)
          , threads(threads)
          , work(std::move(work))
-         , group(group)
       {}
    };
+
+   virtual void printCaption();
+   virtual void printFooter();
+
+   virtual void printRunning(
+      std::size_t index,
+      std::size_t variant
+   );
+
+   virtual void printResult(
+      std::size_t index,
+      std::size_t variant
+   );
+
+   virtual void printHeader();
 
    Terminal m_console;
    std::string m_name;
    Counter m_iterations;
-   std::vector<Item> m_items;
+   std::vector<Bm> m_bm;
 };
 
 

@@ -27,9 +27,11 @@ struct Fixture
 
    virtual ~Fixture() = default;
 
+   virtual void initialize(unsigned threads) {}
    virtual void prologue(Tid tid) {}
    virtual Counter run(Counter iterations, Tid tid) = 0;
    virtual void epilogue(Tid tid) {}
+   virtual void finalize() {}
 
    template <class T, class... Args>
    static Ptr make(Args... args)

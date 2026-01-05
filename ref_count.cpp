@@ -1,5 +1,4 @@
 #include <atomic>
-#include <iostream>
 #include <mutex>
 
 #include "benchmark/runner.hpp"
@@ -10,123 +9,209 @@ namespace
 {
 
 
-using Refc = std::size_t;
-
-struct IRefCounted
+class Fixture
+   : public Benchmark::Fixture
 {
-   using Ptr = std::unique_ptr<IRefCounted>;
+public:
+   Fixture()
+      : m_rand(0)
+   {}
 
-   virtual ~IRefCounted() = default;
-   virtual Refc add_ref() noexcept = 0;
-};
+   void initialize(unsigned threads) override
+   {
+      auto o = makeObj();
+      m_obj.swap(o);
+   }
 
-struct A {};
-struct B {};
+   Benchmark::Counter run(
+      Benchmark::Counter iterations,
+      Benchmark::Tid tid
+   ) override
+   {
+      return bench(iterations, m_obj.get());
+   }
 
-using Object = IRefCounted::Ptr;
-volatile Refc g_dummy = 0;
+   void finalize() override
+   {
+      m_obj.reset();
+   }
 
-Benchmark::Counter bench(
-   Benchmark::Counter iterations,
-   Object& o
+protected:
+   using Refc = std::size_t;
+
+   struct IRefCounted
+   {
+      using Ptr = std::unique_ptr<IRefCounted>;
+
+      virtual ~IRefCounted() = default;
+      virtual Refc add_ref() noexcept = 0;
+   };
+
+   static volatile Refc g_dummy;
+   Benchmark::Random m_rand;
+   IRefCounted::Ptr m_obj;
+
+   Benchmark::Counter bench(
+      Benchmark::Counter iterations,
+      IRefCounted* o
    ) noexcept
-{
-   Refc t = 0;
-   while (iterations--)
    {
-      t += o->add_ref();
+      Refc t = 0;
+      while (iterations--)
+      {
+         t += o->add_ref();
+      }
+
+      g_dummy = t;
+      return 0;
    }
 
-   g_dummy = t;
-   return 0;
-}
-
-template <class A, class B>
-Object make()
-{
-   Benchmark::Random r(0);
-
-   auto id = r();
-   if (id % 2 == 0)
-      return Object(new A());
-   else
-      return Object(new B());
-}
-
-template <class Base>
-struct NonAtomic : public IRefCounted, public Base
-{
-   constexpr NonAtomic() noexcept = default;
-
-   Refc add_ref() noexcept override
+   template <class Type1, class Type2>
+   IRefCounted::Ptr makeAnyObj()
    {
-      return ++m_refs;
+      auto id = m_rand();
+      if (id % 2 == 0)
+         return std::make_unique<Type1>();
+      else
+         return std::make_unique<Type2>();
    }
 
-   Refc m_refs = 0;
+   virtual IRefCounted::Ptr makeObj() = 0;
 };
 
-Object nonAtomic()
-{
-   return make<NonAtomic<A>, NonAtomic<B>>();
-}
+volatile Fixture::Refc Fixture::g_dummy = 0;
 
-template <class Base>
-struct Volatile : public IRefCounted, public Base
-{
-   constexpr Volatile() noexcept = default;
 
-   Refc add_ref() noexcept override
+class NonAtomic
+   : public Fixture
+{
+private:
+   class BaseA {};
+   class BaseB {};
+
+   template <class Base>
+   struct Obj
+      : public IRefCounted
+      , public Base
    {
-      m_refs = m_refs + 1;
-      return m_refs;
-   }
+      constexpr Obj() noexcept = default;
 
-   Refc volatile m_refs = 0;
+      Refc add_ref() noexcept override
+      {
+         return ++m_refs;
+      }
+
+      Refc m_refs = 0;
+   };
+
+public:
+   NonAtomic() = default;
+
+   IRefCounted::Ptr makeObj() override
+   {
+      return makeAnyObj<Obj<BaseA>, Obj<BaseB>>();
+   }
 };
 
-Object nonAtomicVolatile()
-{
-   return make<Volatile<A>, Volatile<B>>();
-}
 
-template <class Base, std::memory_order Order>
-struct Atomic : public IRefCounted, public Base
+class NonAtomicVolatile
+   : public Fixture
 {
-   constexpr Atomic() noexcept = default;
+private:
+   class BaseA {};
+   class BaseB {};
 
-   Refc add_ref() noexcept override
+   template <class Base>
+   struct Obj
+      : public IRefCounted
+      , public Base
    {
-      return m_refs.fetch_add(1, Order) + 1;
-   }
+      constexpr Obj() noexcept = default;
 
-   std::atomic<Refc> m_refs = 0;
+      Refc add_ref() noexcept override
+      {
+         auto v = m_refs + 1;
+         m_refs = v;
+         return v;
+      }
+
+      Refc volatile m_refs = 0;
+   };
+
+public:
+   NonAtomicVolatile() = default;
+
+   IRefCounted::Ptr makeObj() override
+   {
+      return makeAnyObj<Obj<BaseA>, Obj<BaseB>>();
+   }
 };
+
 
 template <std::memory_order Order>
-Object atomic()
+class Atomic
+   : public Fixture
 {
-   return make<Atomic<A, Order>, Atomic<B, Order>>();
-}
+private:
+   class BaseA {};
+   class BaseB {};
 
-template <class Base>
-struct Mutex : public IRefCounted, public Base
-{
-   constexpr Mutex() noexcept = default;
-
-   Refc add_ref() noexcept override
+   template <class Base>
+   struct Obj
+      : public IRefCounted
+      , public Base
    {
-      std::lock_guard l(m_mu);
-      return ++m_refs;
-   }
+      constexpr Obj() noexcept = default;
 
-   std::mutex m_mu;
-   Refc m_refs = 0;
+      Refc add_ref() noexcept override
+      {
+         return m_refs.fetch_add(1, Order) + 1;
+      }
+
+      std::atomic<Refc> m_refs = 0;
+   };
+
+public:
+   Atomic() = default;
+
+   IRefCounted::Ptr makeObj() override
+   {
+      return makeAnyObj<Obj<BaseA>, Obj<BaseB>>();
+   }
 };
 
-Object mutex()
+
+class Mutex
+   : public Fixture
 {
-   return make<Mutex<A>, Mutex<B>>();
+private:
+   class BaseA {};
+   class BaseB {};
+
+   template <class Base>
+   struct Obj
+      : public IRefCounted
+      , public Base
+   {
+      constexpr Obj() noexcept = default;
+
+      Refc add_ref() noexcept override
+      {
+         std::lock_guard l(m_mu);
+         return ++m_refs;
+      }
+
+      std::mutex m_mu;
+      Refc m_refs = 0;
+   };
+
+public:
+   Mutex() = default;
+
+   IRefCounted::Ptr makeObj() override
+   {
+      return makeAnyObj<Obj<BaseA>, Obj<BaseB>>();
+   }
 };
 
 } // namespace
@@ -143,67 +228,35 @@ int main()
 
    r.add(
       "non-atomic counter",
-      [](Benchmark::Counter iterations, Benchmark::Tid)
-      {
-         auto v = nonAtomic();
-         return bench(iterations, v);
-      }
+      Benchmark::Fixture::make<NonAtomic>()
    );
 
    r.add(
-      "volatile non-atomic counter",
-      [](Benchmark::Counter iterations, Benchmark::Tid)
-      {
-         auto v = nonAtomicVolatile();
-         return bench(iterations, v);
-      }
+      "non-atomic volatile counter",
+      Benchmark::Fixture::make<NonAtomicVolatile>()
    );
-
-   auto relaxed = [](Benchmark::Counter iterations, Benchmark::Tid)
-   {
-      auto v = atomic<std::memory_order_relaxed>();
-      return bench(iterations, v);
-   };
 
    r.add(
       "atomic counter (relaxed)",
-      relaxed,
+      Benchmark::Fixture::make<Atomic<std::memory_order_relaxed>>(),
       { 1, 2, 4, 8 }
    );
-
-   auto acq_rel = [](Benchmark::Counter iterations, Benchmark::Tid)
-   {
-      auto v = atomic<std::memory_order_acq_rel>();
-      return bench(iterations, v);
-   };
 
    r.add(
       "atomic counter (acq_rel)",
-      acq_rel,
+      Benchmark::Fixture::make<Atomic<std::memory_order_acq_rel>>(),
       { 1, 2, 4, 8 }
    );
-
-   auto seq_cst = [](Benchmark::Counter iterations, Benchmark::Tid)
-   {
-      auto v = atomic<std::memory_order_seq_cst>();
-      return bench(iterations, v);
-   };
 
    r.add(
       "atomic counter (seq_cst)",
-      seq_cst,
+      Benchmark::Fixture::make<Atomic<std::memory_order_seq_cst>>(),
       { 1, 2, 4, 8 }
    );
 
-   auto mutexed = [](Benchmark::Counter iterations, Benchmark::Tid)
-   {
-      auto v = mutex();
-      return bench(iterations, v);
-   };
-
    r.add(
-      "counter + mutex",
-      mutexed,
+      "mutex + counter",
+      Benchmark::Fixture::make<Mutex>(),
       { 1, 2, 4, 8 }
    );
 

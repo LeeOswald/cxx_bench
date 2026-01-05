@@ -24,6 +24,8 @@ Data run(
    Stopwatch<ThreadCpuTimeProvider> cpuTime;
    Stopwatch<ThreadCpuUsageProvider> cpuUsage;
 
+   f->initialize(1);
+
    while (iterations)
    {
       f->prologue(0);
@@ -40,6 +42,8 @@ Data run(
 
       f->epilogue(0);
    }
+
+   f->finalize();
 
    return Data {
       1,
@@ -72,6 +76,8 @@ Data run(
    std::condition_variable cv;
    bool start = false;
    std::atomic<unsigned> active = 0;
+
+   f->initialize(threads);
 
    for (Tid tid = 0; tid < threads; ++tid)
    {
@@ -137,6 +143,8 @@ Data run(
    // wait for the workers
    for (auto& w: workers)
       w.join();
+
+   f->finalize();
 
    decltype(Data::cpuTime) cpuTime = {};
    decltype(Data::cpuUsage) cpuUsage = {};

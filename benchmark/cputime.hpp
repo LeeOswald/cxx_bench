@@ -16,18 +16,18 @@ namespace Benchmark
 class ThreadCpuTimeProvider final
 {
 public:
-   using Unit = std::chrono::nanoseconds;
+   using Value = std::chrono::nanoseconds;
 
    constexpr ThreadCpuTimeProvider() noexcept = default;
 
-   Unit operator()() noexcept
+   Value operator()() noexcept
    {
       struct timespec t = {};
       ::clock_gettime(CLOCK_THREAD_CPUTIME_ID, &t);
       std::uint64_t v = t.tv_sec;
-      v *= 1000000000ULL;
+      v *= 1000000000ULL; // ns
       v += t.tv_nsec;
-      return Unit{ v };
+      return Value{ v };
    }
 };
 
@@ -39,22 +39,70 @@ public:
 class ProcessCpuTimeProvider final
 {
 public:
-   using Unit = std::chrono::nanoseconds;
+   using Value = std::chrono::nanoseconds;
 
    constexpr ProcessCpuTimeProvider() noexcept = default;
 
-   Unit operator()() noexcept
+   Value operator()() noexcept
    {
       struct timespec t = {};
       ::clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &t);
       std::uint64_t v = t.tv_sec;
-      v *= 1000000000ULL;
+      v *= 1000000000ULL; // ns
       v += t.tv_nsec;
-      return Unit{ v };
+      return Value{ v };
    }
 };
 
 #endif
+
+
+template <typename Unit>
+struct CpuUsage
+{
+   Unit user;
+   Unit system;
+
+   constexpr CpuUsage(Unit u = {}, Unit s = {}) noexcept
+      : user(u)
+      , system(s)
+   {}
+
+   void operator+=(const CpuUsage& o) noexcept
+   {
+      user += o.user;
+      system += o.system;
+   }
+
+   void operator-=(const CpuUsage& o) noexcept
+   {
+      user -= o.user;
+      system -= o.system;
+   }
+
+   friend constexpr CpuUsage operator+(
+      const CpuUsage& a,
+      const CpuUsage& b
+   ) noexcept
+   {
+      return CpuUsage{
+         a.user + b.user,
+         a.system + b.system
+      };
+   }
+
+   friend constexpr CpuUsage operator-(
+      const CpuUsage& a,
+      const CpuUsage& b
+   ) noexcept
+   {
+      return CpuUsage{
+         a.user - b.user,
+         a.system - b.system
+      };
+   }
+};
+
 
 #if BM_POSIX
 
@@ -62,60 +110,28 @@ template <int Who>
 class PosixCpuUsageProvider
 {
 public:
-   using Unit = std::chrono::microseconds;
-
-   struct Times
-   {
-      Unit user;
-      Unit system;
-   };
+   using Value = CpuUsage<std::chrono::microseconds>;
 
    constexpr PosixCpuUsageProvider() noexcept = default;
 
-   void start() noexcept
+   Value operator()() noexcept
    {
-      struct rusage u = {};
-      ::getrusage(Who, &u);
+      struct rusage ru = {};
+      ::getrusage(Who, &ru);
 
-      m_uStart = u.ru_utime.tv_sec;
-      m_uStart *= 1000000ULL;
-      m_uStart += u.ru_utime.tv_usec;
+      std::uint64_t u = ru.ru_utime.tv_sec;
+      u *= 1000000ULL; // ms
+      u += ru.ru_utime.tv_usec;
 
-      m_sStart = u.ru_stime.tv_sec;
-      m_sStart *= 1000000ULL;
-      m_sStart += u.ru_stime.tv_usec;
-   }
+      std::uint64_t s = ru.ru_stime.tv_sec;
+      s *= 1000000ULL; // ms
+      s += ru.ru_stime.tv_usec;
 
-   void stop() noexcept
-   {
-      struct rusage u = {};
-      ::getrusage(Who, &u);
-
-      std::uint64_t uEnd = u.ru_utime.tv_sec;
-      uEnd *= 1000000ULL;
-      uEnd += u.ru_utime.tv_usec;
-
-      std::uint64_t sEnd = u.ru_stime.tv_sec;
-      sEnd *= 1000000ULL;
-      sEnd += u.ru_stime.tv_usec;
-
-      m_user += (uEnd - m_uStart);
-      m_system += (sEnd - m_sStart);
-   }
-
-   Times value() const noexcept
-   {
-      return Times {
-         Unit{m_user},
-         Unit{m_system}
+      return Value {
+         std::chrono::microseconds(u),
+         std::chrono::microseconds(s)
       };
    }
-
-private:
-   std::uint64_t m_user = {};
-   std::uint64_t m_system = {};
-   std::uint64_t m_uStart = {};
-   std::uint64_t m_sStart = {};
 };
 
 

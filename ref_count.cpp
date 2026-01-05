@@ -5,11 +5,10 @@
 #include "benchmark/runner.hpp"
 #include "benchmark/random.hpp"
 
-#include <pthread.h>
-
 
 namespace
 {
+
 
 using Refc = std::size_t;
 
@@ -27,8 +26,8 @@ struct B {};
 using Object = IRefCounted::Ptr;
 volatile Refc g_dummy = 0;
 
-void bench(
-   std::uint64_t iterations,
+Benchmark::Counter bench(
+   Benchmark::Counter iterations,
    Object& o
    ) noexcept
 {
@@ -39,6 +38,7 @@ void bench(
    }
 
    g_dummy = t;
+   return 0;
 }
 
 template <class A, class B>
@@ -129,36 +129,6 @@ Object mutex()
    return make<Mutex<A>, Mutex<B>>();
 };
 
-template <class Base>
-struct PosixMutex : public IRefCounted, public Base
-{
-   ~PosixMutex()
-   {
-      ::pthread_mutex_destroy(&m_mu);
-   }
-
-   PosixMutex() noexcept
-   {
-      ::pthread_mutex_init(&m_mu, nullptr);
-   }
-
-   Refc add_ref() noexcept override
-   {
-      ::pthread_mutex_lock(&m_mu);
-      auto r = ++m_refs;
-      ::pthread_mutex_unlock(&m_mu);
-      return r;
-   }
-
-   pthread_mutex_t m_mu;
-   Refc m_refs = 0;
-};
-
-Object posixMutex()
-{
-   return make<PosixMutex<A>, PosixMutex<B>>();
-};
-
 } // namespace
 
 
@@ -174,27 +144,27 @@ int main()
    r.add(
       "non-atomic counter",
       1,
-      [](std::uint64_t iterations)
+      [](Benchmark::Counter iterations, Benchmark::Tid)
       {
          auto v = nonAtomic();
-         bench(iterations, v);
+         return bench(iterations, v);
       }
    );
 
    r.add(
       "volatile non-atomic counter",
       1,
-      [](std::uint64_t iterations)
+      [](Benchmark::Counter iterations, Benchmark::Tid)
       {
          auto v = nonAtomicVolatile();
-         bench(iterations, v);
+         return bench(iterations, v);
       }
    );
 
-   auto relaxed = [](std::uint64_t iterations)
+   auto relaxed = [](Benchmark::Counter iterations, Benchmark::Tid)
    {
       auto v = atomic<std::memory_order_relaxed>();
-      bench(iterations, v);
+      return bench(iterations, v);
    };
 
    r.add(
@@ -218,10 +188,10 @@ int main()
       relaxed
    );
 
-   auto acq_rel = [](std::uint64_t iterations)
+   auto acq_rel = [](Benchmark::Counter iterations, Benchmark::Tid)
    {
       auto v = atomic<std::memory_order_acq_rel>();
-      bench(iterations, v);
+      return bench(iterations, v);
    };
 
    r.add(
@@ -245,10 +215,10 @@ int main()
       acq_rel
    );
 
-   auto seq_cst = [](std::uint64_t iterations)
+   auto seq_cst = [](Benchmark::Counter iterations, Benchmark::Tid)
    {
       auto v = atomic<std::memory_order_seq_cst>();
-      bench(iterations, v);
+      return bench(iterations, v);
    };
 
    r.add(
@@ -272,10 +242,10 @@ int main()
       seq_cst
    );
 
-   auto mutexed = [](std::uint64_t iterations)
+   auto mutexed = [](Benchmark::Counter iterations, Benchmark::Tid)
    {
       auto v = mutex();
-      bench(iterations, v);
+      return bench(iterations, v);
    };
 
    r.add(
@@ -297,33 +267,6 @@ int main()
    r.add(
       8,
       mutexed
-   );
-
-   auto pmutexed = [](std::uint64_t iterations)
-   {
-      auto v = posixMutex();
-      bench(iterations, v);
-   };
-
-   r.add(
-      "counter + posix mutex",
-      1,
-      pmutexed
-   );
-
-   r.add(
-      2,
-      pmutexed
-   );
-
-   r.add(
-      4,
-      pmutexed
-   );
-
-   r.add(
-      8,
-      pmutexed
    );
 
    r.run();

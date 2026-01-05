@@ -125,7 +125,8 @@ void run()
    r.add(
       "free function",
       1,
-      [&ff](std::uint64_t iterations)
+      [&ff](Benchmark::Counter iterations, Benchmark::Tid)
+         -> Benchmark::Counter
       {
          auto c = iterations;
          std::size_t current = 0;
@@ -136,6 +137,8 @@ void run()
             if (++current == count)
                current = 0;
          }
+
+         return 0;
       }
    );
 
@@ -144,7 +147,8 @@ void run()
    r.add(
       "class  method",
       1,
-      [&abc](std::uint64_t iterations)
+      [&abc](Benchmark::Counter iterations, Benchmark::Tid)
+         -> Benchmark::Counter
       {
          auto c = iterations;
          std::size_t current = 0;
@@ -155,13 +159,16 @@ void run()
             if (++current == count)
                current = 0;
          }
+
+         return 0;
       }
    );
 
    r.add(
       "virtual method",
       1,
-      [&abc](std::uint64_t iterations)
+      [&abc](Benchmark::Counter iterations, Benchmark::Tid)
+         -> Benchmark::Counter
       {
          auto c = iterations;
          std::size_t current = 0;
@@ -172,13 +179,16 @@ void run()
             if (++current == count)
                current = 0;
          }
+
+         return 0;
       }
    );
 
    r.add(
       "pseudo-virtual method",
       1,
-      [&abc](std::uint64_t iterations)
+      [&abc](Benchmark::Counter iterations, Benchmark::Tid)
+         -> Benchmark::Counter
       {
          auto c = iterations;
          std::size_t current = 0;
@@ -190,13 +200,16 @@ void run()
             if (++current == count)
                current = 0;
          }
+
+         return 0;
       }
    );
 
    r.add(
       "pImpl method",
       1,
-      [&abc](std::uint64_t iterations)
+      [&abc](Benchmark::Counter iterations, Benchmark::Tid)
+         -> Benchmark::Counter
       {
          auto c = iterations;
          std::size_t current = 0;
@@ -207,6 +220,8 @@ void run()
             if (++current == count)
                current = 0;
          }
+
+         return 0;
       }
    );
 
@@ -215,7 +230,8 @@ void run()
    r.add(
       "std::function -> free function",
       1,
-      [&ff, &fun](std::uint64_t iterations)
+      [&ff, &fun](Benchmark::Counter iterations, Benchmark::Tid)
+         -> Benchmark::Counter
       {
          auto c = iterations;
          std::size_t current = 0;
@@ -226,6 +242,8 @@ void run()
             if (++current == count)
                current = 0;
          }
+
+         return 0;
       }
    );
 
@@ -239,7 +257,8 @@ void run()
    r.add(
       "std::function + std::bind -> method",
       1,
-      [&abc, &fun0](std::uint64_t iterations)
+      [&abc, &fun0](Benchmark::Counter iterations, Benchmark::Tid)
+         -> Benchmark::Counter
       {
          auto c = iterations;
          std::size_t current = 0;
@@ -251,6 +270,8 @@ void run()
             if (++current == count)
                current = 0;
          }
+
+         return 0;
       }
    );
 
@@ -264,7 +285,8 @@ void run()
    r.add(
       "std::function + std::bind -> virtual method",
       1,
-      [&abc, &fun1](std::uint64_t iterations)
+      [&abc, &fun1](Benchmark::Counter iterations, Benchmark::Tid)
+         -> Benchmark::Counter
       {
          auto c = iterations;
          std::size_t current = 0;
@@ -276,6 +298,8 @@ void run()
             if (++current == count)
                current = 0;
          }
+
+         return 0;
       }
    );
 
@@ -288,7 +312,8 @@ void run()
    r.add(
       "std::function + lambda -> method",
       1,
-      [&abc, &lam0](std::uint64_t iterations)
+      [&abc, &lam0](Benchmark::Counter iterations, Benchmark::Tid)
+         -> Benchmark::Counter
       {
          auto c = iterations;
          std::size_t current = 0;
@@ -300,6 +325,8 @@ void run()
             if (++current == count)
                current = 0;
          }
+
+         return 0;
       }
    );
 
@@ -312,7 +339,8 @@ void run()
    r.add(
       "std::function + lambda -> virtual method",
       1,
-      [&abc, &lam1](std::uint64_t iterations)
+      [&abc, &lam1](Benchmark::Counter iterations, Benchmark::Tid)
+         -> Benchmark::Counter
       {
          auto c = iterations;
          std::size_t current = 0;
@@ -324,6 +352,8 @@ void run()
             if (++current == count)
                current = 0;
          }
+
+         return 0;
       }
    );
 

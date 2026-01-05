@@ -14,35 +14,35 @@ namespace Benchmark
 class Runner
 {
 public:
-   Runner(auto&& name, std::uint64_t iterations)
-      : m_name{std::forward<decltype(name)>(name)}
+   Runner(std::string_view name, Counter iterations)
+      : m_name(name)
       , m_iterations(iterations)
    {
    }
 
    void add(
-      auto&& name,
+      std::string_view name,
       unsigned threads,
-      BenchmarkItem auto&& work
+      SimpleBenchmark auto&& work
    )
    {
-      m_bm.emplace_back(
-         std::forward<decltype(name)>(name),
+      m_items.emplace_back(
+         name,
          threads,
-         std::forward<decltype(work)>(work),
+         SimpleFixture::make(work),
          true
       );
    }
 
    void add(
       unsigned threads,
-      BenchmarkItem auto&& work
+      SimpleBenchmark auto&& work
    )
    {
-      m_bm.emplace_back(
+      m_items.emplace_back(
          "",
          threads,
-         std::forward<decltype(work)>(work),
+         SimpleFixture::make(work),
          false
       );
    }
@@ -55,18 +55,18 @@ public:
    }
 
 private:
-   struct Benchmark
+   struct Item
    {
       std::string name;
       unsigned threads;
-      std::function<void(std::uint64_t)> work;
+      Fixture::Ptr work;
       bool group;
-      Timings timings;
+      Data data;
 
-      Benchmark(
+      Item(
          std::string_view name,
          unsigned threads,
-         std::function<void(std::uint64_t)>&& work,
+         Fixture::Ptr&& work,
          bool group
       )
          : name(name)
@@ -78,8 +78,8 @@ private:
 
    Terminal m_console;
    std::string m_name;
-   std::uint64_t m_iterations;
-   std::vector<Benchmark> m_bm;
+   Counter m_iterations;
+   std::vector<Item> m_items;
 };
 
 

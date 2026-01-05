@@ -1,146 +1,83 @@
 #pragma once
 
+
 #include "cputime.hpp"
-#include "stopwatch.hpp"
-#include "timestamp.hpp"
 
 #include <chrono>
 #include <concepts>
-#include <condition_variable>
 #include <functional>
-#include <iomanip>
-#include <mutex>
-#include <thread>
-#include <vector>
-
-
-#define BM_NOINLINE \
-   __attribute__((noinline))
-
-#define BM_DONT_OPTIMIZE \
-  __attribute__((optnone))
 
 
 namespace Benchmark
 {
 
 
-struct Timings final
-{
-   using Stopwatch = Stopwatch<TimestampProvider>;
-   using CpuUsageProvider = ProcessCpuUsageProvider;
-
-   Stopwatch::Unit time;
-   CpuUsageProvider::Times cpu;
-};
+using Counter = std::uint64_t;
+using Tid = unsigned;
 
 
 template <typename T>
-concept BenchmarkItem =
-   std::is_invocable_v<T, std::uint64_t>;
+concept SimpleBenchmark =
+   std::is_invocable_r_v<Counter, T, Counter, Tid>;
 
 
-inline Timings run(
-   BenchmarkItem auto const& work,
-   std::uint64_t iterations
-)
+struct Fixture
 {
-   Timings::CpuUsageProvider cpu;
-   Timings::Stopwatch sw;
+   using Ptr = std::unique_ptr<Fixture>;
 
-   cpu.start();
-   sw.start();
+   virtual ~Fixture() = default;
 
-   work(iterations);
+   virtual void prologue(Tid tid) {}
+   virtual Counter run(Counter iterations, Tid tid) = 0;
+   virtual void epilogue(Tid tid) {}
 
-   sw.stop();
-   cpu.stop();
-
-   return Timings {
-      sw.value(),
-      cpu.value()
-   };
-}
-
-
-inline Timings run(
-   unsigned threads,
-   BenchmarkItem  auto const& work,
-   std::uint64_t iterations
-)
-{
-   if (threads < 2)
-      return run(work, iterations);
-
-   Timings::CpuUsageProvider cpu;
-   Timings::Stopwatch sw;
-
-   std::vector<std::jthread> workers;
-   workers.reserve(threads);
-
-   std::mutex mtx;
-   std::condition_variable cv;
-   bool start = false;
-   std::atomic<unsigned> active = 0;
-
-   for (unsigned id = 0; id < threads; ++id)
+   template <class T, class... Args>
+   static Ptr make(Args... args)
    {
-      workers.emplace_back(
-         [
-            id,
-            &cpu,
-            &sw,
-            &mtx,
-            &cv,
-            &start,
-            &active,
-            &work,
-            iterations
-         ]()
-         {
-            // start all the workers synchronously
-            {
-               std::unique_lock l(mtx);
-               cv.wait(l, [&start]() { return start; });
-            }
+      return std::make_unique<T>(
+         std::forward<Args>(args)...
+      );
+   }
+};
 
-            // first stsrted thread starts the global timer
-            if (active.fetch_add(1, std::memory_order_acq_rel) == 0)
-            {
-               cpu.start();
-               sw.start();
-            }
 
-            work(iterations);
+struct SimpleFixture final
+   : public Fixture
+{
+public:
+   SimpleFixture(SimpleBenchmark auto&& work)
+      : m_work(std::forward<decltype(work)>(work))
+   {}
 
-            // the last active thread stops the global timer
-            if (active.fetch_sub(1, std::memory_order_acq_rel) == 1)
-            {
-               sw.stop();
-               cpu.stop();
-            }
-         }
+   static Fixture::Ptr make(SimpleBenchmark auto&& work)
+   {
+      return std::make_unique<SimpleFixture>(
+         std::forward<decltype(work)>(work)
       );
    }
 
-   // start the workers
+   Counter run(Counter iterations, Tid tid) override
    {
-      std::lock_guard l(mtx);
-      start = true;
+      return m_work(iterations, tid);
    }
 
-   cv.notify_all();
-
-   // wait for the workers
-   for (auto& w: workers)
-      w.join();
+private:
+   std::function<Counter(Counter, Tid)> m_work;
+};
 
 
-   return Timings {
-      sw.value(),
-      cpu.value()
-   };
-}
+struct Data
+{
+   unsigned threads;
+   std::chrono::nanoseconds wallTime;
+   std::chrono::nanoseconds cpuTime;
+   CpuUsage<std::chrono::microseconds> cpuUsage;
+};
+
+
+Data run(Fixture* f, Counter iterations);
+
+Data run(unsigned threads, Fixture* f, Counter iterations);
 
 
 } // namespace

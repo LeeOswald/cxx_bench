@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <exception>
 #include <iostream>
 #include <vector>
 #include <typeinfo>
@@ -150,7 +151,8 @@ int main()
    r.add(
       "dynamic_cast",
       1,
-      [&abv](std::uint64_t iterations)
+      [&abv](Benchmark::Counter iterations, Benchmark::Tid)
+         -> Benchmark::Counter
       {
          auto c = iterations;
          std::size_t current = 0;
@@ -171,13 +173,16 @@ int main()
             if (++current == count)
                current = 0;
          }
+
+         return 0;
       }
    );
 
    r.add(
       "typeinfo",
       1,
-      [&abv](std::uint64_t iterations)
+      [&abv](Benchmark::Counter iterations, Benchmark::Tid)
+         -> Benchmark::Counter
       {
          auto c = iterations;
          std::size_t current = 0;
@@ -194,6 +199,8 @@ int main()
             if (++current == count)
                current = 0;
          }
+
+         return 0;
       }
    );
 

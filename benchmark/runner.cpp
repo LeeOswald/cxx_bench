@@ -1,4 +1,7 @@
+#include "chrono.hpp"
 #include "runner.hpp"
+
+#include <iomanip>
 
 
 namespace Benchmark
@@ -16,28 +19,28 @@ void Runner::run()
 
    m_console.line('-');
 
-   if (m_bm.empty())
+   if (m_items.empty())
       return;
 
    std::string name;
    std::size_t index = 0;
 
-   for (auto& bm: m_bm)
+   for (auto& item: m_items)
    {
-      if (bm.group)
-         name = bm.name;
+      if (item.group)
+         name = item.name;
 
-      out() << "#" << (index + 1) << " / " << m_bm.size()
+      out() << "#" << (index + 1) << " / " << m_items.size()
             << ": " << name;
 
-      if (bm.threads > 1)
-         out() << " ×" << bm.threads << " threads";
+      if (item.threads > 1)
+         out() << " ×" << item.threads << " threads";
 
       out() << std::endl;
 
-      bm.timings = ::Benchmark::run(
-         bm.threads,
-         bm.work,
+      item.data = ::Benchmark::run(
+         item.threads,
+         item.work.get(),
          m_iterations
       );
 
@@ -53,27 +56,28 @@ void Runner::run()
          << " CPU (u/s), ms"
          << std::endl;
 
-   auto best = m_bm.front().timings.time.count();
+   auto best = ns(m_items.front().data.wallTime);
 
    std::size_t id = 0;
-   for (auto& bm: m_bm)
+   for (auto& item: m_items)
    {
-      if (id == 0 || bm.group)
+      if (id == 0 || item.group)
          m_console.line('-');
 
-      if (bm.group)
+      if (item.group)
       {
-         out() << " " << bm.name << std::endl;
+         out() << " " << item.name << std::endl;
          out() << "   ";
          m_console.line('-', m_console.width() - 3);
       }
 
-      auto du = bm.timings.time.count();
-      auto op = du / m_iterations;
-      auto percent = du * 100.0 / double(best);
+      auto wall = ns(item.data.wallTime);
+      auto cpu = ns(item.data.cpuTime);
+      auto op = cpu / m_iterations;
+      auto percent = wall * 100.0 / double(best);
 
-      out() << std::setw(2) << bm.threads << " |"
-            << std::setw(10) << (du / 1000) <<  " |"
+      out() << std::setw(2) << item.threads << " |"
+            << std::setw(10) << (wall / 1000) <<  " |"
             << std::setw(7) << op << " | ";
 
       if (percent < 200)
@@ -88,10 +92,10 @@ void Runner::run()
       }
 
       {
-         auto u = bm.timings.cpu.user.count() / 1000;
+         auto u = ms(item.data.cpuUsage.user);
          out() << " | " << u;
 
-         auto s = bm.timings.cpu.system.count() / 1000;
+         auto s = ms(item.data.cpuUsage.system);
          if (s > 0)
             out() << " / " << s;
       }

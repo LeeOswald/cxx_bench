@@ -9,9 +9,9 @@ template <class Provider>
 class Stopwatch
 {
 public:
-   using Unit = typename Provider::Unit;
+   using Value = typename Provider::Value;
 
-   constexpr Stopwatch(Provider pr = {})
+   constexpr Stopwatch(Provider pr = {}) noexcept
       : m_provider(pr)
    {}
 
@@ -20,22 +20,22 @@ public:
       m_started = m_provider();
    }
 
-   Unit stop() noexcept
+   Value stop() noexcept
    {
       auto delta = m_provider() - m_started;
       m_elapsed += delta;
       return delta;
    }
 
-   Unit value() const noexcept
+   Value value() const noexcept
    {
       return m_elapsed;
    }
 
 private:
    Provider m_provider;
-   Unit m_started = {};
-   Unit m_elapsed = {};
+   Value m_started = {};
+   Value m_elapsed = {};
 };
 
 

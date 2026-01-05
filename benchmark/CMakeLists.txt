@@ -1,11 +1,6 @@
 
 add_library(benchmark
-   benchmark.hpp
-   cputime.hpp
-   runner.hpp
-   random.hpp
-   stopwatch.hpp
-   terminal.hpp
+   benchmark.cpp
    runner.cpp
 )
 

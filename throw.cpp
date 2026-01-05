@@ -92,18 +92,22 @@ int main()
    r.add(
       "baseline",
       1,
-      [&nobangs, &dummy](std::uint64_t iterations)
+      [&nobangs, &dummy](Benchmark::Counter iterations, Benchmark::Tid)
+         -> Benchmark::Counter
       {
          dummy = nothrowFor(nobangs, iterations);
+         return 0;
       }
    );
 
    r.add(
       "try+catch (xcpt not fired)",
       1,
-      [&nobangs, &dummy](std::uint64_t iterations)
+      [&nobangs, &dummy](Benchmark::Counter iterations, Benchmark::Tid)
+         -> Benchmark::Counter
       {
          dummy = throwFor(nobangs, iterations);
+         return 0;
       }
    );
 
@@ -114,9 +118,11 @@ int main()
       1
    );
 
-   auto ttc = [&bangs, &dummy](std::uint64_t iterations)
+   auto ttc = [&bangs, &dummy](Benchmark::Counter iterations, Benchmark::Tid)
+         -> Benchmark::Counter
    {
       dummy = throwFor(bangs, iterations);
+      return 0;
    };
 
    r.add(

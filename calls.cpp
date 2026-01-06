@@ -66,6 +66,31 @@ protected:
          o->v += (a + b);
       }
 
+      using Fn = std::function<void(IObj*, Value, Value)>;
+      virtual Fn makeStaticFn() noexcept = 0;
+
+      using MemberFn = std::function<void(Value, Value)>;
+      virtual MemberFn bindMemberFn() noexcept = 0;
+      virtual MemberFn lambdaMemberFn() noexcept = 0;
+
+      MemberFn bindVirtualMemberFn() noexcept
+      {
+         return std::bind(
+            &IObj::virtualMethod,
+            this,
+            std::placeholders::_1,
+            std::placeholders::_2
+         );
+      }
+
+      MemberFn lambdaVirtualMemberFn() noexcept
+      {
+         return [this](Value a, Value b)
+         {
+            this->virtualMethod(a, b);
+         };
+      }
+
       Value v;
    };
 
@@ -80,6 +105,43 @@ protected:
       {
          v += (a + b);
       }
+
+      BM_NOINLINE static void staticMethod2(IObj* o, Value a, Value b) noexcept
+      {
+         o->v += -(a + b);
+      }
+
+      BM_NOINLINE void classMethod2(
+         Value a,
+         Value b
+      ) noexcept
+      {
+         v += -(a + b);
+      }
+
+      MemberFn bindMemberFn() noexcept override
+      {
+         return std::bind(
+            &A::classMethod2,
+            this,
+            std::placeholders::_1,
+            std::placeholders::_2
+         );
+      }
+
+      MemberFn lambdaMemberFn() noexcept override
+      {
+         return [this](Value a, Value b)
+         {
+            this->classMethod2(a, b);
+         };
+      }
+
+      Fn makeStaticFn() noexcept override
+      {
+         return { &A::staticMethod2 };
+      }
+
    };
 
    struct B : public IObj
@@ -92,6 +154,42 @@ protected:
       BM_NOINLINE void virtualMethod(Value a, Value b) noexcept override
       {
          v += (a - b);
+      }
+
+      BM_NOINLINE static void staticMethod2(IObj* o, Value a, Value b) noexcept
+      {
+         o->v -= -(a + b);
+      }
+
+      Fn makeStaticFn() noexcept override
+      {
+         return { &B::staticMethod2 };
+      }
+
+      BM_NOINLINE void classMethod2(
+         Value a,
+         Value b
+      ) noexcept
+      {
+         v += -(a + b);
+      }
+
+      MemberFn bindMemberFn() noexcept override
+      {
+         return std::bind(
+            &B::classMethod2,
+            this,
+            std::placeholders::_1,
+            std::placeholders::_2
+         );
+      }
+
+      MemberFn lambdaMemberFn() noexcept override
+      {
+         return [this](Value a, Value b)
+         {
+            this->classMethod2(a, b);
+         };
       }
    };
 
@@ -106,6 +204,42 @@ protected:
       {
          v -= (a + b);
       }
+
+      BM_NOINLINE static void staticMethod2(IObj* o, Value a, Value b) noexcept
+      {
+         o->v += (-a + b);
+      }
+
+      Fn makeStaticFn() noexcept override
+      {
+         return { &C::staticMethod2 };
+      }
+
+      BM_NOINLINE void classMethod2(
+         Value a,
+         Value b
+      ) noexcept
+      {
+         v += -(a + b);
+      }
+
+      MemberFn bindMemberFn() noexcept override
+      {
+         return std::bind(
+            &C::classMethod2,
+            this,
+            std::placeholders::_1,
+            std::placeholders::_2
+         );
+      }
+
+      MemberFn lambdaMemberFn() noexcept override
+      {
+         return [this](Value a, Value b)
+         {
+            this->classMethod2(a, b);
+         };
+      }
    };
 
    struct D : public IObj
@@ -118,6 +252,42 @@ protected:
       BM_NOINLINE void virtualMethod(Value a, Value b) noexcept override
       {
          v -= (a - b);
+      }
+
+      BM_NOINLINE static void staticMethod2(IObj* o, Value a, Value b) noexcept
+      {
+         o->v += (a - b);
+      }
+
+      Fn makeStaticFn() noexcept override
+      {
+         return { &D::staticMethod2 };
+      }
+
+      BM_NOINLINE void classMethod2(
+         Value a,
+         Value b
+      ) noexcept
+      {
+         v += -(a + b);
+      }
+
+      MemberFn bindMemberFn() noexcept override
+      {
+         return std::bind(
+            &D::classMethod2,
+            this,
+            std::placeholders::_1,
+            std::placeholders::_2
+         );
+      }
+
+      MemberFn lambdaMemberFn() noexcept override
+      {
+         return [this](Value a, Value b)
+         {
+            this->classMethod2(a, b);
+         };
       }
    };
 
@@ -219,11 +389,220 @@ public:
       g_dontOptimize = m_objs.one()->v;
       return 0;
    }
-
-private:
-
 };
 
+
+class PImplMethod final
+   : public Fixture
+{
+public:
+   PImplMethod() noexcept = default;
+
+   void initialize(unsigned tid) override
+   {
+      Fixture::initialize(tid);
+
+      for (auto& o: m_objs.objects)
+         m_outers.emplace_back(
+            new Outer(o.get())
+         );
+   }
+
+   void finalize() override
+   {
+      m_outers.clear();
+
+      Fixture::finalize();
+   }
+
+   Benchmark::Counter run(
+      Benchmark::Counter iterations,
+      Benchmark::Tid
+   ) override
+   {
+      auto n = m_outers.size();
+      while (iterations--)
+      {
+         auto index = rand()() % n;
+         auto o = m_outers[index].get();
+
+         o->method(iterations, iterations);
+      }
+
+      g_dontOptimize = m_objs.one()->v;
+      return 0;
+   }
+
+private:
+   struct Outer
+   {
+      Outer(IObj* impl) noexcept
+         : m_impl(impl)
+      {}
+
+      void method(Value a, Value b) noexcept
+      {
+         m_impl->classMethod(a, b);
+      }
+
+      IObj* m_impl;
+   };
+
+   std::vector<std::unique_ptr<Outer>> m_outers;
+};
+
+
+class StdFunctionStaticMethod
+   : public Fixture
+{
+public:
+   StdFunctionStaticMethod() noexcept = default;
+
+   void initialize(unsigned tid) override
+   {
+      Fixture::initialize(tid);
+
+      for (auto& o: m_objs.objects)
+         m_fns.push_back(
+            o->makeStaticFn()
+         );
+   }
+
+   void finalize() override
+   {
+      m_fns.clear();
+
+      Fixture::finalize();
+   }
+
+   Benchmark::Counter run(
+      Benchmark::Counter iterations,
+      Benchmark::Tid
+   ) override
+   {
+      auto n = m_fns.size();
+
+      while (iterations--)
+      {
+         auto index = rand()() % n;
+         auto o = m_objs.objects[index].get();
+         m_fns[index](o, iterations, iterations);
+      }
+
+      g_dontOptimize = m_objs.one()->v;
+      return 0;
+   }
+
+private:
+   std::vector<IObj::Fn> m_fns;
+};
+
+
+class StdFunctionToMethod
+   : public Fixture
+{
+public:
+   StdFunctionToMethod() noexcept = default;
+
+   void finalize() override
+   {
+      m_fns.clear();
+
+      Fixture::finalize();
+   }
+
+   Benchmark::Counter run(
+      Benchmark::Counter iterations,
+      Benchmark::Tid
+   ) override
+   {
+      auto n = m_fns.size();
+
+      while (iterations--)
+      {
+         auto index = rand()() % n;
+         auto o = m_objs.objects[index].get();
+         m_fns[index](iterations, iterations);
+      }
+
+      g_dontOptimize = m_objs.one()->v;
+      return 0;
+   }
+
+protected:
+   std::vector<IObj::MemberFn> m_fns;
+};
+
+
+class StdFunctionBindClassMethod
+   : public StdFunctionToMethod
+{
+public:
+   StdFunctionBindClassMethod() noexcept = default;
+
+   void initialize(unsigned tid) override
+   {
+      Fixture::initialize(tid);
+
+      for (auto& o: m_objs.objects)
+         m_fns.push_back(
+            o->bindMemberFn()
+         );
+   }
+};
+
+
+class StdFunctionLambdaClassMethod
+   : public StdFunctionToMethod
+{
+public:
+   StdFunctionLambdaClassMethod() noexcept = default;
+
+   void initialize(unsigned tid) override
+   {
+      Fixture::initialize(tid);
+
+      for (auto& o: m_objs.objects)
+         m_fns.push_back(
+            o->lambdaMemberFn()
+         );
+   }
+};
+
+class StdFunctionBindVirtualMethod
+   : public StdFunctionToMethod
+{
+public:
+   StdFunctionBindVirtualMethod() noexcept = default;
+
+   void initialize(unsigned tid) override
+   {
+      Fixture::initialize(tid);
+
+      for (auto& o: m_objs.objects)
+         m_fns.push_back(
+            o->bindVirtualMemberFn()
+         );
+   }
+};
+
+
+class StdFunctionLambdaVirtualMethod
+   : public StdFunctionToMethod
+{
+public:
+   StdFunctionLambdaVirtualMethod() noexcept = default;
+
+   void initialize(unsigned tid) override
+   {
+      Fixture::initialize(tid);
+
+      for (auto& o: m_objs.objects)
+         m_fns.push_back(
+            o->lambdaVirtualMemberFn()
+         );
+   }
+};
 
 } // namespace
 
@@ -255,234 +634,36 @@ int main()
       Fixture::make<VirtualMethod>()
    );
 
-#if 0
-   auto ff = makeFreeFun(1024);
-
    r.add(
-      "free function",
-      [&ff](Benchmark::Counter iterations, Benchmark::Tid)
-         -> Benchmark::Counter
-      {
-         auto c = iterations;
-         std::size_t current = 0;
-         auto count = ff.size();
-         while (c--)
-         {
-            freeFun(ff[current].get(), c);
-            if (++current == count)
-               current = 0;
-         }
-
-         return 0;
-      }
-   );
-
-   auto abc = makeABC(1024);
-
-   r.add(
-      "class  method",
-      [&abc](Benchmark::Counter iterations, Benchmark::Tid)
-         -> Benchmark::Counter
-      {
-         auto c = iterations;
-         std::size_t current = 0;
-         auto count = abc.size();
-         while (c--)
-         {
-            abc[current].get()->methodCall(c);
-            if (++current == count)
-               current = 0;
-         }
-
-         return 0;
-      }
+      "p/impl method",
+      Fixture::make<PImplMethod>()
    );
 
    r.add(
-      "virtual method",
-      [&abc](Benchmark::Counter iterations, Benchmark::Tid)
-         -> Benchmark::Counter
-      {
-         auto c = iterations;
-         std::size_t current = 0;
-         auto count = abc.size();
-         while (c--)
-         {
-            abc[current].get()->virtualCall(c);
-            if (++current == count)
-               current = 0;
-         }
-
-         return 0;
-      }
+      "std::function -> static method",
+      Fixture::make<StdFunctionStaticMethod>()
    );
 
    r.add(
-      "pseudo-virtual method",
-      [&abc](Benchmark::Counter iterations, Benchmark::Tid)
-         -> Benchmark::Counter
-      {
-         auto c = iterations;
-         std::size_t current = 0;
-         auto count = abc.size();
-         while (c--)
-         {
-            auto o = abc[current].get();
-            o->pseudoVirtualCall(o, c);
-            if (++current == count)
-               current = 0;
-         }
-
-         return 0;
-      }
+      "std::function + std::bind -> regular method",
+      Fixture::make<StdFunctionBindClassMethod>()
    );
 
    r.add(
-      "pImpl method",
-      [&abc](Benchmark::Counter iterations, Benchmark::Tid)
-         -> Benchmark::Counter
-      {
-         auto c = iterations;
-         std::size_t current = 0;
-         auto count = abc.size();
-         while (c--)
-         {
-            abc[current].get()->pimplCall(c);
-            if (++current == count)
-               current = 0;
-         }
-
-         return 0;
-      }
+      "std::function + lambda -> regular method",
+      Fixture::make<StdFunctionLambdaClassMethod>()
    );
-
-   std::function<Type(FreeData*,Type)> fun = freeFun;
-
-   r.add(
-      "std::function -> free function",
-      [&ff, &fun](Benchmark::Counter iterations, Benchmark::Tid)
-         -> Benchmark::Counter
-      {
-         auto c = iterations;
-         std::size_t current = 0;
-         auto count = ff.size();
-         while (c--)
-         {
-            fun(ff[current].get(), c);
-            if (++current == count)
-               current = 0;
-         }
-
-         return 0;
-      }
-   );
-
-   std::function<Type(A*,Type)> fun0 =
-      std::bind(
-         &A::methodCall,
-         std::placeholders::_1,
-         std::placeholders::_2
-      );
-
-   r.add(
-      "std::function + std::bind -> method",
-      [&abc, &fun0](Benchmark::Counter iterations, Benchmark::Tid)
-         -> Benchmark::Counter
-      {
-         auto c = iterations;
-         std::size_t current = 0;
-         auto count = abc.size();
-         while (c--)
-         {
-            auto o = abc[current].get();
-            fun0(o, c);
-            if (++current == count)
-               current = 0;
-         }
-
-         return 0;
-      }
-   );
-
-   std::function<Type(A*,Type)> fun1 =
-      std::bind(
-         &A::virtualCall,
-         std::placeholders::_1,
-         std::placeholders::_2
-      );
 
    r.add(
       "std::function + std::bind -> virtual method",
-      [&abc, &fun1](Benchmark::Counter iterations, Benchmark::Tid)
-         -> Benchmark::Counter
-      {
-         auto c = iterations;
-         std::size_t current = 0;
-         auto count = abc.size();
-         while (c--)
-         {
-            auto o = abc[current].get();
-            fun1(o, c);
-            if (++current == count)
-               current = 0;
-         }
-
-         return 0;
-      }
+      Fixture::make<StdFunctionBindVirtualMethod>()
    );
-
-   std::function<Type(A*,Type)> lam0 =
-   [](A* a, Type v)
-   {
-      return a->methodCall(v);
-   };
-
-   r.add(
-      "std::function + lambda -> method",
-      [&abc, &lam0](Benchmark::Counter iterations, Benchmark::Tid)
-         -> Benchmark::Counter
-      {
-         auto c = iterations;
-         std::size_t current = 0;
-         auto count = abc.size();
-         while (c--)
-         {
-            auto o = abc[current].get();
-            lam0(o, c);
-            if (++current == count)
-               current = 0;
-         }
-
-         return 0;
-      }
-   );
-
-   std::function<Type(A*,Type)> lam1 =
-   [](A* a, Type v)
-   {
-      return a->virtualCall(v);
-   };
 
    r.add(
       "std::function + lambda -> virtual method",
-      [&abc, &lam1](Benchmark::Counter iterations, Benchmark::Tid)
-         -> Benchmark::Counter
-      {
-         auto c = iterations;
-         std::size_t current = 0;
-         auto count = abc.size();
-         while (c--)
-         {
-            auto o = abc[current].get();
-            lam1(o, c);
-            if (++current == count)
-               current = 0;
-         }
-
-         return 0;
-      }
+      Fixture::make<StdFunctionLambdaVirtualMethod>()
    );
-#endif
+
 
    r.run();
 

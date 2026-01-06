@@ -63,9 +63,15 @@ void Runner::printResult(
    {
       m_console.line('-');
 
-      out() << " " << bm.name << std::endl;
+      out() << "   " << bm.name << std::endl;
       out() << "   ";
-      m_console.line('-', m_console.width() - 3);
+      m_console.line(
+         '-',
+         std::min(
+            unsigned(bm.name.length()),
+            unsigned(m_console.width() - 6)
+         )
+      );
    }
 
    auto wall = ns(bm.data[variant].wallTime);

@@ -35,7 +35,7 @@ add_executable(ref_count ref_count.cpp)
 target_compile_options(ref_count PRIVATE -O3 -fno-rtti)
 target_link_libraries(ref_count PRIVATE benchmark)
 
-add_executable(calls calls.cpp calls_impl.cpp)
+add_executable(calls calls.cpp)
 target_compile_options(calls PRIVATE -O3 -fno-rtti)
 target_link_libraries(calls PRIVATE benchmark)
 

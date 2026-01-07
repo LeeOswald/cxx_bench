@@ -21,7 +21,8 @@ public:
 
    void initialize(unsigned) override
    {
-      m_objs.fill(
+      AnyObject::fill(
+         m_objs,
          [this]() { return rand()() % 3 == 0; },
          256,
          rand()
@@ -293,9 +294,28 @@ protected:
       }
    };
 
-   Benchmark::AnyObject<
+   IObj* one() noexcept
+   {
+      assert(!m_objs.empty());
+      auto idx = m_next++;
+      if (m_next == m_objs.size())
+         m_next = 0;
+
+      return m_objs[idx].get();
+   }
+
+   IObj* at(std::size_t idx) noexcept
+   {
+      assert(idx < m_objs.size());
+      return m_objs[idx].get();
+   }
+
+   using AnyObject = Benchmark::AnyObject<
       IObj, A, B, C, D
-   > m_objs;
+   >;
+
+   Benchmark::AnyObjectVector<IObj> m_objs;
+   std::size_t m_next = 0;
 };
 
 
@@ -315,11 +335,11 @@ public:
    {
       while (iterations--)
       {
-         auto o = m_objs.one();
+         auto o = one();
          IObj::staticMethod(o, iterations, iterations);
       }
 
-      g_dontOptimize = m_objs.one()->v;
+      g_dontOptimize = one()->v;
       return 0;
    }
 };
@@ -338,11 +358,11 @@ public:
    {
       while (iterations--)
       {
-         auto o = m_objs.one();
+         auto o = one();
          o->inlineMethod(iterations, iterations);
       }
 
-      g_dontOptimize = m_objs.one()->v;
+      g_dontOptimize = one()->v;
       return 0;
    }
 };
@@ -361,11 +381,11 @@ public:
    {
       while (iterations--)
       {
-         auto o = m_objs.one();
+         auto o = one();
          o->classMethod(iterations, iterations);
       }
 
-      g_dontOptimize = m_objs.one()->v;
+      g_dontOptimize = one()->v;
       return 0;
    }
 };
@@ -384,11 +404,11 @@ public:
    {
       while (iterations--)
       {
-         auto o = m_objs.one();
+         auto o = one();
          o->virtualMethod(iterations, iterations);
       }
 
-      g_dontOptimize = m_objs.one()->v;
+      g_dontOptimize = one()->v;
       return 0;
    }
 };
@@ -404,7 +424,7 @@ public:
    {
       Fixture::initialize(tid);
 
-      for (auto& o: m_objs.objects())
+      for (auto& o: m_objs)
          m_outers.emplace_back(
             new Outer(o.get())
          );
@@ -431,7 +451,7 @@ public:
          o->method(iterations, iterations);
       }
 
-      g_dontOptimize = m_objs.one()->v;
+      g_dontOptimize = one()->v;
       return 0;
    }
 
@@ -464,7 +484,7 @@ public:
    {
       Fixture::initialize(tid);
 
-      for (auto& o: m_objs.objects())
+      for (auto& o: m_objs)
          m_fns.push_back(
             o->makeStaticFn()
          );
@@ -487,11 +507,11 @@ public:
       while (iterations--)
       {
          auto index = rand()() % n;
-         auto o = m_objs.at(index);
+         auto o = at(index);
          m_fns[index](o, iterations, iterations);
       }
 
-      g_dontOptimize = m_objs.one()->v;
+      g_dontOptimize = one()->v;
       return 0;
    }
 
@@ -523,11 +543,11 @@ public:
       while (iterations--)
       {
          auto index = rand()() % n;
-         auto o = m_objs.at(index);
+         auto o = at(index);
          m_fns[index](iterations, iterations);
       }
 
-      g_dontOptimize = m_objs.one()->v;
+      g_dontOptimize = one()->v;
       return 0;
    }
 
@@ -546,7 +566,7 @@ public:
    {
       Fixture::initialize(tid);
 
-      for (auto& o: m_objs.objects())
+      for (auto& o: m_objs)
          m_fns.push_back(
             o->bindMemberFn()
          );
@@ -564,7 +584,7 @@ public:
    {
       Fixture::initialize(tid);
 
-      for (auto& o: m_objs.objects())
+      for (auto& o: m_objs)
          m_fns.push_back(
             o->lambdaMemberFn()
          );
@@ -581,7 +601,7 @@ public:
    {
       Fixture::initialize(tid);
 
-      for (auto& o: m_objs.objects())
+      for (auto& o: m_objs)
          m_fns.push_back(
             o->bindVirtualMemberFn()
          );
@@ -599,7 +619,7 @@ public:
    {
       Fixture::initialize(tid);
 
-      for (auto& o: m_objs.objects())
+      for (auto& o: m_objs)
          m_fns.push_back(
             o->lambdaVirtualMemberFn()
          );

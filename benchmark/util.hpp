@@ -1,9 +1,8 @@
 #pragma once
 
 
-#include "random.hpp"
-
 #include <cassert>
+#include <concepts>
 #include <memory>
 #include <vector>
 
@@ -33,6 +32,10 @@ inline std::uint64_t tid() noexcept
 }
 
 
+template <typename T>
+concept BoolSource = std::is_invocable_r_v<bool, T>;
+
+
 template <class IBase, class Derived, class... Others>
 struct AnyObject;
 
@@ -40,35 +43,52 @@ struct AnyObject;
 template <class IBase, class Derived>
 struct AnyObject<IBase, Derived>
 {
-   constexpr AnyObject(Random& r) noexcept
-      : _rand(r)
+   constexpr AnyObject() noexcept
    {}
 
-   template <typename... Args>
-   void push(Args&&... args)
+   void push(BoolSource auto const& selector, auto&&... args)
    {
-      if (this->_rand() % 2 == 0)
-         this->objects.emplace_back(
-            new Derived(std::forward<Args>(args)...)
+      if (selector())
+         this->m_objects.emplace_back(
+            new Derived(
+               std::forward<decltype(args)>(args)...
+            )
          );
    }
 
    IBase* one() noexcept
    {
-      assert(!objects.empty());
-      auto index = _rand() % objects.size();
-      return objects[index].get();
+      assert(!m_objects.empty());
+      if (m_next >= m_objects.size())
+         m_next = 0;
+
+      return m_objects[m_next++].get();
+   }
+
+   auto size() const noexcept
+   {
+      return m_objects.size();
    }
 
    void clear() noexcept
    {
-      objects.clear();
+      m_objects.clear();
    }
 
-   std::vector<std::unique_ptr<IBase>> objects;
+   IBase* at(std::size_t index) noexcept
+   {
+      assert(index < m_objects.size());
+      return m_objects[index].get();
+   }
+
+   auto& objects() noexcept
+   {
+      return m_objects;
+   }
 
 protected:
-   Random& _rand;
+   std::vector<std::unique_ptr<IBase>> m_objects;
+   std::size_t m_next = 0;
 };
 
 
@@ -78,27 +98,35 @@ struct AnyObject
 {
    using Super = AnyObject<IBase, Other...>;
 
-   constexpr AnyObject(Random& r) noexcept
-      : Super(r)
-   {}
+   constexpr AnyObject() noexcept = default;
 
-   template <typename... Args>
-   void push(Args&&... args)
+   void push(BoolSource auto const& selector, auto&&... args)
    {
-      if (this->_rand() % 2 == 0)
-         this->objects.emplace_back(
-            new Derived(std::forward<Args>(args)...)
+      if (selector())
+         this->m_objects.emplace_back(
+            new Derived(
+               std::forward<decltype(args)>(args)...
+            )
          );
       else
-         Super::push(std::forward<Args>(args)...);
+         Super::push(
+            selector,
+            std::forward<decltype(args)>(args)...
+         );
    }
 
-   template <typename... Args>
-   void fill(std::size_t n, Args&&... args)
+   void fill(
+      BoolSource auto const& selector,
+      std::size_t n,
+      auto&&... args
+   )
    {
       while (n--)
       {
-         push(std::forward<Args>(args)...);
+         push(
+            selector,
+            std::forward<decltype(args)>(args)...
+         );
       }
    }
 };

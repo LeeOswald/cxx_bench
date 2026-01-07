@@ -4,6 +4,7 @@
 
 
 #include "benchmark/compiler.hpp"
+#include "benchmark/random.hpp"
 #include "benchmark/runner.hpp"
 #include "benchmark/util.hpp"
 
@@ -16,14 +17,15 @@ class Fixture
    : public Benchmark::Fixture
 {
 public:
-   Fixture() noexcept
-      : m_objs(rand())
-   {
-   }
+   Fixture() noexcept = default;
 
    void initialize(unsigned) override
    {
-      m_objs.fill(64, rand());
+      m_objs.fill(
+         [this]() { return rand()() % 3 == 0; },
+         256,
+         rand()
+      );
    }
 
    void finalize() override
@@ -402,7 +404,7 @@ public:
    {
       Fixture::initialize(tid);
 
-      for (auto& o: m_objs.objects)
+      for (auto& o: m_objs.objects())
          m_outers.emplace_back(
             new Outer(o.get())
          );
@@ -462,7 +464,7 @@ public:
    {
       Fixture::initialize(tid);
 
-      for (auto& o: m_objs.objects)
+      for (auto& o: m_objs.objects())
          m_fns.push_back(
             o->makeStaticFn()
          );
@@ -485,7 +487,7 @@ public:
       while (iterations--)
       {
          auto index = rand()() % n;
-         auto o = m_objs.objects[index].get();
+         auto o = m_objs.at(index);
          m_fns[index](o, iterations, iterations);
       }
 
@@ -521,7 +523,7 @@ public:
       while (iterations--)
       {
          auto index = rand()() % n;
-         auto o = m_objs.objects[index].get();
+         auto o = m_objs.at(index);
          m_fns[index](iterations, iterations);
       }
 
@@ -544,7 +546,7 @@ public:
    {
       Fixture::initialize(tid);
 
-      for (auto& o: m_objs.objects)
+      for (auto& o: m_objs.objects())
          m_fns.push_back(
             o->bindMemberFn()
          );
@@ -562,7 +564,7 @@ public:
    {
       Fixture::initialize(tid);
 
-      for (auto& o: m_objs.objects)
+      for (auto& o: m_objs.objects())
          m_fns.push_back(
             o->lambdaMemberFn()
          );
@@ -579,7 +581,7 @@ public:
    {
       Fixture::initialize(tid);
 
-      for (auto& o: m_objs.objects)
+      for (auto& o: m_objs.objects())
          m_fns.push_back(
             o->bindVirtualMemberFn()
          );
@@ -597,7 +599,7 @@ public:
    {
       Fixture::initialize(tid);
 
-      for (auto& o: m_objs.objects)
+      for (auto& o: m_objs.objects())
          m_fns.push_back(
             o->lambdaVirtualMemberFn()
          );

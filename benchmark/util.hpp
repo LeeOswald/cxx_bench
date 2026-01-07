@@ -37,10 +37,13 @@ concept BoolSource = std::is_invocable_r_v<bool, T>;
 
 
 template <class IBase, class Derived, class... Others>
+   requires std::is_base_of_v<IBase, Derived> &&
+   (std::is_base_of_v<IBase, Others> && ...)
 struct AnyObject;
 
 
 template <class IBase, class Derived>
+   requires std::is_base_of_v<IBase, Derived>
 struct AnyObject<IBase, Derived>
 {
    constexpr AnyObject() noexcept
@@ -92,11 +95,13 @@ protected:
 };
 
 
-template <class IBase, class Derived, class... Other>
+template <class IBase, class Derived, class... Others>
+   requires std::is_base_of_v<IBase, Derived> &&
+   (std::is_base_of_v<IBase, Others> && ...)
 struct AnyObject
-   : public AnyObject<IBase, Other...>
+   : public AnyObject<IBase, Others...>
 {
-   using Super = AnyObject<IBase, Other...>;
+   using Super = AnyObject<IBase, Others...>;
 
    constexpr AnyObject() noexcept = default;
 

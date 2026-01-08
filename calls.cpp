@@ -629,10 +629,20 @@ public:
 } // namespace
 
 
-
-int main()
+int main(int argc, char** argv)
 {
-   constexpr std::size_t iterations = 100000000ULL;
+   auto iterations = Benchmark::getIntArgOr(
+      "-n",
+      100000000ULL,
+      argc,
+      argv
+   );
+
+   if (iterations < 1)
+   {
+      std::cerr << "-n must be positive\n";
+      return -1;
+   }
 
    Benchmark::Runner r("Function call speed", iterations);
 

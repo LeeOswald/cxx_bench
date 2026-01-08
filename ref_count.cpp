@@ -1,5 +1,6 @@
 #include <atomic>
 #include <mutex>
+#include <vector>
 
 #include "benchmark/runner.hpp"
 #include "benchmark/random.hpp"
@@ -25,7 +26,7 @@ public:
    {
       while (iterations--)
       {
-         next()->add_ref();
+         next(tid)->add_ref();
       }
 
       return 0;
@@ -51,17 +52,22 @@ protected:
    };
 
    static volatile Refc g_dontOptimize;
+
    Benchmark::Random m_rand;
-   Benchmark::AnyObjectVector<IRefCounted> m_objs;
-   std::size_t m_next = 0;
 
-   IRefCounted* next() noexcept
+   std::vector<
+      Benchmark::AnyObjectVector<IRefCounted>
+   > m_objs;
+
+   std::vector<std::size_t> m_next;
+
+   IRefCounted* next(uint tid) noexcept
    {
-      auto idx = m_next++;
-      if (m_next == m_objs.size())
-         m_next = 0;
+      auto idx = m_next[tid]++;
+      if (m_next[tid] == m_objs[tid].size())
+         m_next[tid] = 0;
 
-      return m_objs[idx].get();
+      return m_objs[tid][idx].get();
    }
 };
 
@@ -95,13 +101,23 @@ private:
 public:
    NonAtomic() = default;
 
-   void initialize(unsigned)
+   void initialize(unsigned threads)
    {
-      Benchmark::AnyObject<IRefCounted, Obj<A>, Obj<B>>::fill(
-         m_objs,
-         [this]() { return m_rand() % 3 == 0; },
-         64
-      );
+      m_next.resize(threads);
+      m_objs.resize(threads);
+
+      for (unsigned tid = 0; tid < threads; ++tid)
+      {
+         m_objs[tid].clear();
+
+         Benchmark::AnyObject<IRefCounted, Obj<A>, Obj<B>>::fill(
+            m_objs[tid],
+            [this]() { return m_rand() % 3 == 0; },
+            64
+         );
+
+         m_next[tid] = 0;
+      }
    }
 };
 
@@ -134,13 +150,23 @@ private:
 public:
    NonAtomicVolatile() = default;
 
-   void initialize(unsigned)
+   void initialize(unsigned threads)
    {
-      Benchmark::AnyObject<IRefCounted, Obj<A>, Obj<B>>::fill(
-         m_objs,
-         [this]() { return m_rand() % 3 == 0; },
-         64
-      );
+      m_next.resize(threads);
+      m_objs.resize(threads);
+
+      for (unsigned tid = 0; tid < threads; ++tid)
+      {
+         m_objs[tid].clear();
+
+         Benchmark::AnyObject<IRefCounted, Obj<A>, Obj<B>>::fill(
+            m_objs[tid],
+            [this]() { return m_rand() % 3 == 0; },
+            64
+         );
+
+         m_next[tid] = 0;
+      }
    }
 };
 
@@ -173,13 +199,23 @@ private:
 public:
    Atomic() = default;
 
-   void initialize(unsigned)
+   void initialize(unsigned threads)
    {
-      Benchmark::AnyObject<IRefCounted, Obj<A>, Obj<B>>::fill(
-         m_objs,
-         [this]() { return m_rand() % 3 == 0; },
-         64
-      );
+      m_next.resize(threads);
+      m_objs.resize(threads);
+
+      for (unsigned tid = 0; tid < threads; ++tid)
+      {
+         m_objs[tid].clear();
+
+         Benchmark::AnyObject<IRefCounted, Obj<A>, Obj<B>>::fill(
+            m_objs[tid],
+            [this]() { return m_rand() % 3 == 0; },
+            64
+         );
+
+         m_next[tid] = 0;
+      }
    }
 };
 
@@ -213,26 +249,47 @@ private:
 public:
    Mutex() = default;
 
-   void initialize(unsigned)
+   void initialize(unsigned threads)
    {
-      Benchmark::AnyObject<IRefCounted, Obj<A>, Obj<B>>::fill(
-         m_objs,
-         [this]() { return m_rand() % 3 == 0; },
-         64
-      );
+      m_next.resize(threads);
+      m_objs.resize(threads);
+
+      for (unsigned tid = 0; tid < threads; ++tid)
+      {
+         m_objs[tid].clear();
+
+         Benchmark::AnyObject<IRefCounted, Obj<A>, Obj<B>>::fill(
+            m_objs[tid],
+            [this]() { return m_rand() % 3 == 0; },
+            64
+         );
+
+         m_next[tid] = 0;
+      }
    }
 };
 
 } // namespace
 
 
-int main()
+int main(int argc, char** argv)
 {
-   constexpr std::size_t Iterations = 10000000ULL;
+   auto iterations = Benchmark::getIntArgOr(
+      "-n",
+      10000000ULL,
+      argc,
+      argv
+   );
+
+   if (iterations < 1)
+   {
+      std::cerr << "-n must be positive\n";
+      return -1;
+   }
 
    Benchmark::Runner r(
       "Reference count performance",
-      Iterations
+      iterations
    );
 
    r.add(

@@ -2,8 +2,11 @@
 
 
 #include <cassert>
+#include <charconv>
 #include <concepts>
 #include <memory>
+#include <optional>
+#include <system_error>
 #include <vector>
 
 
@@ -113,5 +116,54 @@ struct AnyObject
       }
    }
 };
+
+
+inline std::optional<int> getIntArg(
+   std::string_view name,
+   int argc,
+   char** argv
+)
+{
+   for (int i = 1; i < argc; ++i)
+   {
+      auto len = std::strlen(argv[i]);
+      std::string_view v{ argv[i], len };
+      if (v == name)
+      {
+         if (i + 1 < argc)
+         {
+            auto str2 = argv[i + 1];
+            auto len2 = std::strlen(str2);
+            int result = 0;
+            auto parsed = std::from_chars(
+               str2,
+               str2 + len2,
+               result
+            );
+            if (parsed.ec == std::errc{})
+               return result;
+            else
+               break;
+         }
+      }
+   }
+
+   return std::nullopt;
+}
+
+inline int getIntArgOr(
+   std::string_view name,
+   int alt,
+   int argc,
+   char** argv
+)
+{
+   auto r = getIntArg(name, argc, argv);
+   if (r)
+      return *r;
+
+   return alt;
+}
+
 
 } // namespace

@@ -9,7 +9,7 @@ namespace Benchmark
 
 void Runner::printCaption()
 {
-   m_console.line('=');
+   m_console.line(out(), '=');
 
    out() << m_name;
    if (m_iterations > 0)
@@ -17,12 +17,12 @@ void Runner::printCaption()
 
    out() <<  std::endl;
 
-   m_console.line('-');
+   m_console.line(out(), '-');
 }
 
 void Runner::printFooter()
 {
-   m_console.line('-');
+   m_console.line(out(), '-');
 }
 
 void Runner::printRunning(
@@ -61,11 +61,12 @@ void Runner::printResult(
 
    if (variant == 0)
    {
-      m_console.line('-');
+      m_console.line(out(), '-');
 
       out() << "   " << bm.name << std::endl;
       out() << "   ";
       m_console.line(
+         out(),
          '-',
          std::min(
             unsigned(bm.name.length()),
@@ -76,12 +77,12 @@ void Runner::printResult(
 
    auto wall = ns(bm.data[variant].wallTime);
    auto cpu = ns(bm.data[variant].cpuTime);
-   auto op = cpu / m_iterations;
+   auto op = cpu / double(m_iterations * bm.threads[variant]);
    auto percent = wall * 100.0 / double(best);
 
    out() << std::setw(2) << bm.threads[variant] << " |"
-         << std::setw(10) << (wall / 1000) <<  " |"
-         << std::setw(7) << op << " | ";
+         << std::setw(12) << (wall / 1000) <<  " |"
+         << std::setw(9) << std::setprecision(2) << std::fixed << op << " | ";
 
    if (percent < 200)
    {
@@ -106,11 +107,11 @@ void Runner::printResult(
 
 void Runner::printHeader()
 {
-   m_console.line('-');
+   m_console.line(out(), '-');
 
    out() << " × |"
-         << " Total, µs |"
-         << " Op, ns |"
+         << "  Total, µs  |"
+         << "  Op, ns  |"
          << "    %    |"
          << " CPU (u/s), ms"
          << std::endl;

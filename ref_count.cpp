@@ -219,7 +219,7 @@ public:
 
 int main()
 {
-   constexpr std::size_t Iterations = 100000000ULL;
+   constexpr std::size_t Iterations = 10000000ULL;
 
    Benchmark::Runner r(
       "Reference count implementations",

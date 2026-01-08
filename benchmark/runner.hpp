@@ -48,9 +48,14 @@ public:
 
    virtual void run();
 
-   std::ostream& out() noexcept
+   auto& out() noexcept
    {
       return m_console.out();
+   }
+
+   auto& err() noexcept
+   {
+      return m_console.err();
    }
 
 private:

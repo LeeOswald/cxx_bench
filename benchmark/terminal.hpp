@@ -2,6 +2,7 @@
 
 #include <cstdio>
 #include <iostream>
+#include <locale>
 
 
 #if BM_POSIX
@@ -23,8 +24,12 @@ class Terminal
 public:
    Terminal() noexcept
       : m_redirected(isRedirected())
+      , m_locale(std::locale(), new numpunct)
    {
       detectWindowSize();
+
+      std::cout.imbue(m_locale);
+      std::cerr.imbue(m_locale);
    }
 
    bool redirected() const noexcept
@@ -32,9 +37,14 @@ public:
       return m_redirected;
    }
 
-   static auto& out() noexcept
+   auto& out() noexcept
    {
       return std::cout;
+   }
+
+   auto& err() noexcept
+   {
+      return std::cerr;
    }
 
    auto width() const noexcept
@@ -47,19 +57,39 @@ public:
       return m_height;
    }
 
-   void line(char c, int width = -1, bool eol = true)
+   void line(
+      auto& stream,
+      char c,
+      int width = -1,
+      bool eol = true
+   )
    {
       if (width < 0)
          width = this->width();
 
       while (width--)
-         out() << c;
+         stream << c;
 
       if (eol)
-         out() << std::endl;
+         stream << std::endl;
    }
 
 private:
+   class numpunct
+      : public std::numpunct<char>
+   {
+   protected:
+      std::string do_grouping() const override
+      {
+         return "\003";
+      }
+
+      char do_thousands_sep() const override
+      {
+         return ',';
+      }
+   };
+
    static bool isRedirected() noexcept
    {
 #if BM_POSIX
@@ -93,6 +123,7 @@ private:
    }
 
    bool m_redirected;
+   std::locale m_locale;
    int m_width = 80;
    int m_height = 25;
 };

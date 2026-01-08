@@ -14,6 +14,10 @@ else()
     message(FATAL_ERROR "Unsupported bitness")
 endif()
 
+# Export only public symbols
+set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
+
 # detect OS
 if(WIN32)
     add_definitions(-D_WIN32_WINNT=0x0602)

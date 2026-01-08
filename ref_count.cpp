@@ -3,6 +3,7 @@
 
 #include "benchmark/runner.hpp"
 #include "benchmark/random.hpp"
+#include "benchmark/util.hpp"
 
 
 namespace
@@ -17,26 +18,28 @@ public:
       : m_rand(0)
    {}
 
-   void initialize(unsigned threads) override
-   {
-      auto o = makeObj();
-      m_obj.swap(o);
-   }
-
    Benchmark::Counter run(
       Benchmark::Counter iterations,
       Benchmark::Tid tid
    ) override
    {
-      return bench(iterations, m_obj.get());
+      while (iterations--)
+      {
+         next()->add_ref();
+      }
+
+      return 0;
    }
 
    void finalize() override
    {
-      m_obj.reset();
+      m_objs.clear();
    }
 
 protected:
+   class A {};
+   class B {};
+
    using Refc = std::size_t;
 
    struct IRefCounted
@@ -44,61 +47,46 @@ protected:
       using Ptr = std::unique_ptr<IRefCounted>;
 
       virtual ~IRefCounted() = default;
-      virtual Refc add_ref() noexcept = 0;
+      virtual void add_ref() noexcept = 0;
    };
 
-   static volatile Refc g_dummy;
+   static volatile Refc g_dontOptimize;
    Benchmark::Random m_rand;
-   IRefCounted::Ptr m_obj;
+   Benchmark::AnyObjectVector<IRefCounted> m_objs;
+   std::size_t m_next = 0;
 
-   Benchmark::Counter bench(
-      Benchmark::Counter iterations,
-      IRefCounted* o
-   ) noexcept
+   IRefCounted* next() noexcept
    {
-      Refc t = 0;
-      while (iterations--)
-      {
-         t += o->add_ref();
-      }
+      auto idx = m_next++;
+      if (m_next == m_objs.size())
+         m_next = 0;
 
-      g_dummy = t;
-      return 0;
+      return m_objs[idx].get();
    }
-
-   template <class Type1, class Type2>
-   IRefCounted::Ptr makeAnyObj()
-   {
-      auto id = m_rand();
-      if (id % 2 == 0)
-         return std::make_unique<Type1>();
-      else
-         return std::make_unique<Type2>();
-   }
-
-   virtual IRefCounted::Ptr makeObj() = 0;
 };
 
-volatile Fixture::Refc Fixture::g_dummy = 0;
+volatile Fixture::Refc Fixture::g_dontOptimize = 0;
 
 
 class NonAtomic
    : public Fixture
 {
 private:
-   class BaseA {};
-   class BaseB {};
-
    template <class Base>
    struct Obj
       : public IRefCounted
       , public Base
    {
+      ~Obj()
+      {
+         g_dontOptimize = m_refs;
+      }
+
       constexpr Obj() noexcept = default;
 
-      Refc add_ref() noexcept override
+      void add_ref() noexcept override
       {
-         return ++m_refs;
+         ++m_refs;
       }
 
       Refc m_refs = 0;
@@ -107,9 +95,13 @@ private:
 public:
    NonAtomic() = default;
 
-   IRefCounted::Ptr makeObj() override
+   void initialize(unsigned)
    {
-      return makeAnyObj<Obj<BaseA>, Obj<BaseB>>();
+      Benchmark::AnyObject<IRefCounted, Obj<A>, Obj<B>>::fill(
+         m_objs,
+         [this]() { return m_rand() % 3 == 0; },
+         64
+      );
    }
 };
 
@@ -118,21 +110,22 @@ class NonAtomicVolatile
    : public Fixture
 {
 private:
-   class BaseA {};
-   class BaseB {};
-
    template <class Base>
    struct Obj
       : public IRefCounted
       , public Base
    {
+      ~Obj()
+      {
+         g_dontOptimize = m_refs;
+      }
+
       constexpr Obj() noexcept = default;
 
-      Refc add_ref() noexcept override
+      void add_ref() noexcept override
       {
          auto v = m_refs + 1;
          m_refs = v;
-         return v;
       }
 
       Refc volatile m_refs = 0;
@@ -141,9 +134,13 @@ private:
 public:
    NonAtomicVolatile() = default;
 
-   IRefCounted::Ptr makeObj() override
+   void initialize(unsigned)
    {
-      return makeAnyObj<Obj<BaseA>, Obj<BaseB>>();
+      Benchmark::AnyObject<IRefCounted, Obj<A>, Obj<B>>::fill(
+         m_objs,
+         [this]() { return m_rand() % 3 == 0; },
+         64
+      );
    }
 };
 
@@ -153,19 +150,21 @@ class Atomic
    : public Fixture
 {
 private:
-   class BaseA {};
-   class BaseB {};
-
    template <class Base>
    struct Obj
       : public IRefCounted
       , public Base
    {
+      ~Obj()
+      {
+         g_dontOptimize = m_refs.load();
+      }
+
       constexpr Obj() noexcept = default;
 
-      Refc add_ref() noexcept override
+      void add_ref() noexcept override
       {
-         return m_refs.fetch_add(1, Order) + 1;
+         m_refs.fetch_add(1, Order);
       }
 
       std::atomic<Refc> m_refs = 0;
@@ -174,9 +173,13 @@ private:
 public:
    Atomic() = default;
 
-   IRefCounted::Ptr makeObj() override
+   void initialize(unsigned)
    {
-      return makeAnyObj<Obj<BaseA>, Obj<BaseB>>();
+      Benchmark::AnyObject<IRefCounted, Obj<A>, Obj<B>>::fill(
+         m_objs,
+         [this]() { return m_rand() % 3 == 0; },
+         64
+      );
    }
 };
 
@@ -185,20 +188,22 @@ class Mutex
    : public Fixture
 {
 private:
-   class BaseA {};
-   class BaseB {};
-
    template <class Base>
    struct Obj
       : public IRefCounted
       , public Base
    {
+      ~Obj()
+      {
+         g_dontOptimize = m_refs;
+      }
+
       constexpr Obj() noexcept = default;
 
-      Refc add_ref() noexcept override
+      void add_ref() noexcept override
       {
          std::lock_guard l(m_mu);
-         return ++m_refs;
+         ++m_refs;
       }
 
       std::mutex m_mu;
@@ -208,9 +213,13 @@ private:
 public:
    Mutex() = default;
 
-   IRefCounted::Ptr makeObj() override
+   void initialize(unsigned)
    {
-      return makeAnyObj<Obj<BaseA>, Obj<BaseB>>();
+      Benchmark::AnyObject<IRefCounted, Obj<A>, Obj<B>>::fill(
+         m_objs,
+         [this]() { return m_rand() % 3 == 0; },
+         64
+      );
    }
 };
 
@@ -222,7 +231,7 @@ int main()
    constexpr std::size_t Iterations = 10000000ULL;
 
    Benchmark::Runner r(
-      "Reference count implementations",
+      "Reference count performance",
       Iterations
    );
 

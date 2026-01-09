@@ -56,17 +56,17 @@ protected:
 
       inline void inlineMethod(Value a, Value b) noexcept
       {
-         v += (a + b);
+         v += (a + b + 1);
       }
 
       BM_NOINLINE void classMethod(Value a, Value b) noexcept
       {
-         v += (a + b);
+         v += (a + b + 1);
       }
 
       BM_NOINLINE static void staticMethod(IObj* o, Value a, Value b) noexcept
       {
-         o->v += (a + b);
+         o->v += (a + b + 1);
       }
 
       using Fn = std::function<void(IObj*, Value, Value)>;
@@ -106,12 +106,12 @@ protected:
 
       BM_NOINLINE void virtualMethod(Value a, Value b) noexcept override
       {
-         v += (a + b);
+         v += (a + b + 2);
       }
 
       BM_NOINLINE static void staticMethod2(IObj* o, Value a, Value b) noexcept
       {
-         o->v += -(a + b);
+         o->v += (a + b + 2);
       }
 
       BM_NOINLINE void classMethod2(
@@ -119,7 +119,7 @@ protected:
          Value b
       ) noexcept
       {
-         v += -(a + b);
+         v += (a + b + 2);
       }
 
       MemberFn bindMemberFn() noexcept override
@@ -156,12 +156,12 @@ protected:
 
       BM_NOINLINE void virtualMethod(Value a, Value b) noexcept override
       {
-         v += (a - b);
+         v += (a + b + 3);
       }
 
       BM_NOINLINE static void staticMethod2(IObj* o, Value a, Value b) noexcept
       {
-         o->v -= -(a + b);
+         o->v += (a + b + 3);
       }
 
       Fn makeStaticFn() noexcept override
@@ -174,7 +174,7 @@ protected:
          Value b
       ) noexcept
       {
-         v += -(a + b);
+         v += (a + b + 3);
       }
 
       MemberFn bindMemberFn() noexcept override
@@ -205,12 +205,12 @@ protected:
 
       BM_NOINLINE void virtualMethod(Value a, Value b) noexcept override
       {
-         v -= (a + b);
+         v += (a + b + 3);
       }
 
       BM_NOINLINE static void staticMethod2(IObj* o, Value a, Value b) noexcept
       {
-         o->v += (-a + b);
+         o->v += (a + b + 3);
       }
 
       Fn makeStaticFn() noexcept override
@@ -223,7 +223,7 @@ protected:
          Value b
       ) noexcept
       {
-         v += -(a + b);
+         v += (a + b + 3);
       }
 
       MemberFn bindMemberFn() noexcept override
@@ -254,12 +254,12 @@ protected:
 
       BM_NOINLINE void virtualMethod(Value a, Value b) noexcept override
       {
-         v -= (a - b);
+         v += (a + b + 4);
       }
 
       BM_NOINLINE static void staticMethod2(IObj* o, Value a, Value b) noexcept
       {
-         o->v += (a - b);
+         o->v += (a + b + 4);
       }
 
       Fn makeStaticFn() noexcept override
@@ -272,7 +272,7 @@ protected:
          Value b
       ) noexcept
       {
-         v += -(a + b);
+         v += (a + b + 4);
       }
 
       MemberFn bindMemberFn() noexcept override
@@ -442,11 +442,9 @@ public:
       Benchmark::Tid
    ) override
    {
-      auto n = m_outers.size();
       while (iterations--)
       {
-         auto index = rand()() % n;
-         auto o = m_outers[index].get();
+         auto o = oneOu();
 
          o->method(iterations, iterations);
       }
@@ -470,7 +468,17 @@ private:
       IObj* m_impl;
    };
 
+   Outer* oneOu() noexcept
+   {
+      auto idx = m_nextOu++;
+      if (m_nextOu == m_outers.size())
+        m_nextOu = 0;
+
+      return m_outers[idx].get();
+   }
+
    std::vector<std::unique_ptr<Outer>> m_outers;
+   std::size_t m_nextOu = 0;
 };
 
 

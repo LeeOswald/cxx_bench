@@ -1,6 +1,7 @@
 #include "chrono.hpp"
 #include "runner.hpp"
 
+#include <cmath>
 #include <iomanip>
 
 
@@ -81,18 +82,29 @@ void Runner::printResult(
    auto percent = wall * 100.0 / double(best);
 
    out() << std::setw(2) << bm.threads[variant] << " |"
-         << std::setw(12) << (wall / 1000) <<  " |"
-         << std::setw(9) << std::setprecision(2) << std::fixed << op << " | ";
+         << std::setw(12) << (wall / 1000) <<  " |";
 
-   if (percent < 200)
+   if  (op < 1)
    {
-      out() << std::setw(7) << std::setprecision(2) << std::fixed
-            << percent;
+      out() << std::setw(7)
+            << std::setprecision(2) << std::fixed
+            << op << " | ";
    }
    else
    {
       out() << std::setw(7)
-            << unsigned(percent);
+            << std::round(op) << " | ";
+   }
+
+   if (percent < 1)
+   {
+      out() << std::setw(5)
+            << std::setprecision(2) << std::fixed
+            << percent;
+   }
+   else
+   {
+      out() << std::setw(5) << std::round(percent);
    }
 
    auto u = ms(bm.data[variant].cpuUsage.user);
@@ -111,8 +123,8 @@ void Runner::printHeader()
 
    out() << " × |"
          << "  Total, µs  |"
-         << "  Op, ns  |"
-         << "    %    |"
+         << " Op, ns |"
+         << "   %   |"
          << " CPU (u/s), ms"
          << std::endl;
 }

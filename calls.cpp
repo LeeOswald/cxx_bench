@@ -21,21 +21,26 @@ public:
 
    void initialize(unsigned) override
    {
-      AnyObject::fill(
-         m_objs,
-         [this]() { return rand()() % 3 == 0; },
-         256,
+      auto o = Benchmark::AnyObject<IObj, A, B>::make(
+         [this]() { return rand()() % 2 == 0; },
          rand()
       );
+
+      m_obj.swap(o);
    }
 
    void finalize() override
    {
-      m_objs.clear();
+      m_obj.reset();
    }
 
 protected:
    using Value = std::size_t;
+
+   static Value heavyFun(Value x, Value y) noexcept
+   {
+      return x * 7 + x % (y / 3 + 1);
+   }
 
    static volatile Value g_dontOptimize;
 
@@ -56,17 +61,17 @@ protected:
 
       inline void inlineMethod(Value a, Value b) noexcept
       {
-         v += (a + b + 1);
+         v += heavyFun(a, b);
       }
 
       BM_NOINLINE void classMethod(Value a, Value b) noexcept
       {
-         v += (a + b + 1);
+         v += heavyFun(a, b);
       }
 
       BM_NOINLINE static void staticMethod(IObj* o, Value a, Value b) noexcept
       {
-         o->v += (a + b + 1);
+         o->v += heavyFun(a, b);
       }
 
       using Fn = std::function<void(IObj*, Value, Value)>;
@@ -106,12 +111,12 @@ protected:
 
       BM_NOINLINE void virtualMethod(Value a, Value b) noexcept override
       {
-         v += (a + b + 2);
+         v -= heavyFun(a, b);
       }
 
       BM_NOINLINE static void staticMethod2(IObj* o, Value a, Value b) noexcept
       {
-         o->v += (a + b + 2);
+         o->v -= heavyFun(a, b);
       }
 
       BM_NOINLINE void classMethod2(
@@ -119,7 +124,7 @@ protected:
          Value b
       ) noexcept
       {
-         v += (a + b + 2);
+         v -= heavyFun(a, b);
       }
 
       MemberFn bindMemberFn() noexcept override
@@ -156,12 +161,12 @@ protected:
 
       BM_NOINLINE void virtualMethod(Value a, Value b) noexcept override
       {
-         v += (a + b + 3);
+         v += heavyFun(b, a);
       }
 
       BM_NOINLINE static void staticMethod2(IObj* o, Value a, Value b) noexcept
       {
-         o->v += (a + b + 3);
+         o->v += heavyFun(b, a);
       }
 
       Fn makeStaticFn() noexcept override
@@ -174,7 +179,7 @@ protected:
          Value b
       ) noexcept
       {
-         v += (a + b + 3);
+         v += heavyFun(b, a);
       }
 
       MemberFn bindMemberFn() noexcept override
@@ -196,126 +201,7 @@ protected:
       }
    };
 
-   struct C : public IObj
-   {
-      C(Benchmark::Random& r)
-         : IObj(r)
-      {
-      }
-
-      BM_NOINLINE void virtualMethod(Value a, Value b) noexcept override
-      {
-         v += (a + b + 3);
-      }
-
-      BM_NOINLINE static void staticMethod2(IObj* o, Value a, Value b) noexcept
-      {
-         o->v += (a + b + 3);
-      }
-
-      Fn makeStaticFn() noexcept override
-      {
-         return { &C::staticMethod2 };
-      }
-
-      BM_NOINLINE void classMethod2(
-         Value a,
-         Value b
-      ) noexcept
-      {
-         v += (a + b + 3);
-      }
-
-      MemberFn bindMemberFn() noexcept override
-      {
-         return std::bind(
-            &C::classMethod2,
-            this,
-            std::placeholders::_1,
-            std::placeholders::_2
-         );
-      }
-
-      MemberFn lambdaMemberFn() noexcept override
-      {
-         return [this](Value a, Value b)
-         {
-            this->classMethod2(a, b);
-         };
-      }
-   };
-
-   struct D : public IObj
-   {
-      D(Benchmark::Random& r)
-         : IObj(r)
-      {
-      }
-
-      BM_NOINLINE void virtualMethod(Value a, Value b) noexcept override
-      {
-         v += (a + b + 4);
-      }
-
-      BM_NOINLINE static void staticMethod2(IObj* o, Value a, Value b) noexcept
-      {
-         o->v += (a + b + 4);
-      }
-
-      Fn makeStaticFn() noexcept override
-      {
-         return { &D::staticMethod2 };
-      }
-
-      BM_NOINLINE void classMethod2(
-         Value a,
-         Value b
-      ) noexcept
-      {
-         v += (a + b + 4);
-      }
-
-      MemberFn bindMemberFn() noexcept override
-      {
-         return std::bind(
-            &D::classMethod2,
-            this,
-            std::placeholders::_1,
-            std::placeholders::_2
-         );
-      }
-
-      MemberFn lambdaMemberFn() noexcept override
-      {
-         return [this](Value a, Value b)
-         {
-            this->classMethod2(a, b);
-         };
-      }
-   };
-
-   IObj* one() noexcept
-   {
-      assert(!m_objs.empty());
-      auto idx = m_next++;
-      if (m_next == m_objs.size())
-         m_next = 0;
-
-      return m_objs[idx].get();
-   }
-
-   IObj* at(std::size_t idx) noexcept
-   {
-      assert(idx < m_objs.size());
-      return m_objs[idx].get();
-   }
-
-   using AnyObject = Benchmark::AnyObject<
-      IObj, A, B, C, D
-   >;
-
-   Benchmark::AnyObjectVector<IObj> m_objs;
-   std::size_t m_next = 0;
+   std::unique_ptr<IObj> m_obj;
 };
 
 
@@ -330,16 +216,16 @@ public:
 
    Benchmark::Counter run(
       Benchmark::Counter iterations,
-      Benchmark::Tid
+      Benchmark::Tid tid
    ) override
    {
+      auto o = m_obj.get();
       while (iterations--)
       {
-         auto o = one();
-         IObj::staticMethod(o, iterations, iterations);
+         IObj::staticMethod(o, iterations, tid);
       }
 
-      g_dontOptimize = one()->v;
+      g_dontOptimize = o->v;
       return 0;
    }
 };
@@ -353,16 +239,16 @@ public:
 
    Benchmark::Counter run(
       Benchmark::Counter iterations,
-      Benchmark::Tid
+      Benchmark::Tid tid
    ) override
    {
+      auto o = m_obj.get();
       while (iterations--)
       {
-         auto o = one();
-         o->inlineMethod(iterations, iterations);
+         o->inlineMethod(iterations, tid);
       }
 
-      g_dontOptimize = one()->v;
+      g_dontOptimize = o->v;
       return 0;
    }
 };
@@ -376,16 +262,16 @@ public:
 
    Benchmark::Counter run(
       Benchmark::Counter iterations,
-      Benchmark::Tid
+      Benchmark::Tid tid
    ) override
    {
+      auto o = m_obj.get();
       while (iterations--)
       {
-         auto o = one();
-         o->classMethod(iterations, iterations);
+         o->classMethod(iterations, tid);
       }
 
-      g_dontOptimize = one()->v;
+      g_dontOptimize = o->v;
       return 0;
    }
 };
@@ -399,16 +285,16 @@ public:
 
    Benchmark::Counter run(
       Benchmark::Counter iterations,
-      Benchmark::Tid
+      Benchmark::Tid tid
    ) override
    {
+      auto o = m_obj.get();
       while (iterations--)
       {
-         auto o = one();
-         o->virtualMethod(iterations, iterations);
+         o->virtualMethod(iterations, tid);
       }
 
-      g_dontOptimize = one()->v;
+      g_dontOptimize = o->v;
       return 0;
    }
 };
@@ -423,33 +309,28 @@ public:
    void initialize(unsigned tid) override
    {
       Fixture::initialize(tid);
-
-      for (auto& o: m_objs)
-         m_outers.emplace_back(
-            new Outer(o.get())
-         );
+      m_outer.reset(new Outer(m_obj.get()));
    }
 
    void finalize() override
    {
-      m_outers.clear();
+      m_outer.reset();
 
       Fixture::finalize();
    }
 
    Benchmark::Counter run(
       Benchmark::Counter iterations,
-      Benchmark::Tid
+      Benchmark::Tid tid
    ) override
    {
+      auto o = m_outer.get();
       while (iterations--)
       {
-         auto o = oneOu();
-
-         o->method(iterations, iterations);
+         o->method(iterations, tid);
       }
 
-      g_dontOptimize = one()->v;
+      g_dontOptimize = m_obj->v;
       return 0;
    }
 
@@ -468,17 +349,7 @@ private:
       IObj* m_impl;
    };
 
-   Outer* oneOu() noexcept
-   {
-      auto idx = m_nextOu++;
-      if (m_nextOu == m_outers.size())
-        m_nextOu = 0;
-
-      return m_outers[idx].get();
-   }
-
-   std::vector<std::unique_ptr<Outer>> m_outers;
-   std::size_t m_nextOu = 0;
+   std::unique_ptr<Outer> m_outer;
 };
 
 
@@ -492,39 +363,25 @@ public:
    {
       Fixture::initialize(tid);
 
-      for (auto& o: m_objs)
-         m_fns.push_back(
-            o->makeStaticFn()
-         );
-   }
-
-   void finalize() override
-   {
-      m_fns.clear();
-
-      Fixture::finalize();
+      m_fn = m_obj->makeStaticFn();
    }
 
    Benchmark::Counter run(
       Benchmark::Counter iterations,
-      Benchmark::Tid
+      Benchmark::Tid tid
    ) override
    {
-      auto n = m_fns.size();
-
       while (iterations--)
       {
-         auto index = rand()() % n;
-         auto o = at(index);
-         m_fns[index](o, iterations, iterations);
+         m_fn(m_obj.get(), iterations, tid);
       }
 
-      g_dontOptimize = one()->v;
+      g_dontOptimize = m_obj->v;
       return 0;
    }
 
 private:
-   std::vector<IObj::Fn> m_fns;
+   IObj::Fn m_fn;
 };
 
 
@@ -534,33 +391,22 @@ class StdFunctionToMethod
 public:
    StdFunctionToMethod() noexcept = default;
 
-   void finalize() override
-   {
-      m_fns.clear();
-
-      Fixture::finalize();
-   }
-
    Benchmark::Counter run(
       Benchmark::Counter iterations,
-      Benchmark::Tid
+      Benchmark::Tid tid
    ) override
    {
-      auto n = m_fns.size();
-
       while (iterations--)
       {
-         auto index = rand()() % n;
-         auto o = at(index);
-         m_fns[index](iterations, iterations);
+         m_fn(iterations, tid);
       }
 
-      g_dontOptimize = one()->v;
+      g_dontOptimize = m_obj->v;
       return 0;
    }
 
 protected:
-   std::vector<IObj::MemberFn> m_fns;
+   IObj::MemberFn m_fn;
 };
 
 
@@ -574,10 +420,7 @@ public:
    {
       Fixture::initialize(tid);
 
-      for (auto& o: m_objs)
-         m_fns.push_back(
-            o->bindMemberFn()
-         );
+      m_fn = m_obj->bindMemberFn();
    }
 };
 
@@ -592,10 +435,7 @@ public:
    {
       Fixture::initialize(tid);
 
-      for (auto& o: m_objs)
-         m_fns.push_back(
-            o->lambdaMemberFn()
-         );
+      m_fn = m_obj->lambdaMemberFn();
    }
 };
 
@@ -609,10 +449,7 @@ public:
    {
       Fixture::initialize(tid);
 
-      for (auto& o: m_objs)
-         m_fns.push_back(
-            o->bindVirtualMemberFn()
-         );
+      m_fn = m_obj->bindVirtualMemberFn();
    }
 };
 
@@ -627,10 +464,7 @@ public:
    {
       Fixture::initialize(tid);
 
-      for (auto& o: m_objs)
-         m_fns.push_back(
-            o->lambdaVirtualMemberFn()
-         );
+      m_fn = m_obj->lambdaVirtualMemberFn();
    }
 };
 

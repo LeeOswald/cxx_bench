@@ -55,18 +55,27 @@ template <class IBase, class Derived>
    requires std::is_base_of_v<IBase, Derived>
 struct AnyObject<IBase, Derived>
 {
-   static void push(
-      AnyObjectVector<IBase>& v,
-      BoolSource auto const& selector, 
+   static std::unique_ptr<IBase> make(
+      [[maybe_unused]] BoolSource auto const& selector,
       auto&&... args
    )
    {
-      if (selector())
-         v.emplace_back(
-            new Derived(
-               std::forward<decltype(args)>(args)...
-            )
-         );
+      return std::make_unique<Derived>(
+         std::forward<decltype(args)>(args)...
+      );
+   }
+
+   static void push(
+      AnyObjectVector<IBase>& v,
+      [[maybe_unused]] BoolSource auto const& selector,
+      auto&&... args
+   )
+   {
+      v.emplace_back(
+         new Derived(
+            std::forward<decltype(args)>(args)...
+         )
+      );
    }
 };
 
@@ -78,6 +87,22 @@ struct AnyObject
    : public AnyObject<IBase, Others...>
 {
    using Super = AnyObject<IBase, Others...>;
+
+   static std::unique_ptr<IBase> make(
+      BoolSource auto const& selector,
+      auto&&... args
+   )
+   {
+      if (selector())
+         return std::make_unique<Derived>(
+            std::forward<decltype(args)>(args)...
+         );
+      else
+         return Super::make(
+            selector,
+            std::forward<decltype(args)>(args)...
+         );
+   }
 
    static void push(
       AnyObjectVector<IBase>& v,

@@ -35,10 +35,6 @@ endif()
 
 add_subdirectory(benchmark)
 
-add_executable(ref_count ref_count.cpp)
-target_compile_options(ref_count PRIVATE -O3 -fno-rtti)
-target_link_libraries(ref_count PRIVATE benchmark)
-
 add_executable(counter counter.cpp)
 target_compile_options(counter PRIVATE -O3 -fno-rtti)
 target_link_libraries(counter PRIVATE benchmark)

@@ -4,4 +4,4 @@ add_library(benchmark
    runner.cpp
 )
 
-target_compile_options(benchmark PRIVATE -O3 -fno-rtti)
+target_compile_options(benchmark PRIVATE -O3)

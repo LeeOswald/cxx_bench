@@ -1,205 +1,248 @@
-#include <cstdio>
-#include <exception>
-#include <iostream>
-#include <vector>
+
 #include <typeinfo>
 
 #include "benchmark/runner.hpp"
 #include "benchmark/random.hpp"
-
+#include "benchmark/util.hpp"
 
 namespace
 {
 
 
-class Base
+struct Fixture :
+   public Benchmark::Fixture
 {
-public:
-   static constexpr int TBase = 0;
+   Fixture()
+      : m_rand(Benchmark::tid())
+   {}
 
-   virtual ~Base() = default;
-
-   constexpr Base(
-      int id = -1,
-      int type = TBase
-   ) noexcept
-      : m_id(id)
-      , m_type(type)
+   void initialize(unsigned) override
    {
+      Benchmark::AnyObject<Base, AB, BA>::fill(
+         m_objs,
+         [this]() { return m_rand() % 2 == 0; },
+         64
+      );
    }
 
-   constexpr auto id() const noexcept
+   void finalize() override
    {
-       return m_id;
+      m_objs.clear();
+      m_next = 0;
    }
 
-   constexpr auto type() const noexcept
+protected:
+   struct Base
    {
-      return m_type;
+      virtual ~Base() = default;
+
+      constexpr Base() noexcept
+         : m_name("Base")
+      {;
+      }
+
+      virtual const char* type() const noexcept = 0;
+
+      const char* m_name;
+   };
+
+   struct A : virtual public Base
+   {
+      A() noexcept
+         : m_name("A")
+      {
+      }
+
+      const char* type() const noexcept override
+      {
+         return m_name;
+      }
+
+      const char* m_name;
+   };
+
+   struct B : virtual public Base
+   {
+      B() noexcept
+         : m_name("B")
+      {
+      }
+
+
+      const char* type() const noexcept override
+      {
+         return m_name;
+      }
+
+      const char* m_name;
+   };
+
+   struct AB : public A, public B
+   {
+      AB() noexcept
+         : m_name("AB")
+      {
+      }
+
+      const char* type() const noexcept override
+      {
+         return m_name;
+      }
+
+      const char* m_name;
+   };
+
+   struct BA : public B, public A
+   {
+      ~BA()
+      {
+      }
+
+      BA() noexcept
+         : m_name("BA")
+      {
+      }
+
+      const char* type() const noexcept override
+      {
+         return m_name;
+      }
+
+      const char* m_name;
+   };
+
+   Base* one() noexcept
+   {
+      auto idx = m_next++;
+      if (m_next == m_objs.size())
+         m_next = 0;
+      return m_objs[idx].get();
    }
 
-   virtual void say() = 0;
-
-private:
-   int m_id;
-   int m_type;
+   Benchmark::Random m_rand;
+   Benchmark::AnyObjectVector<Base> m_objs;
+   std::size_t m_next = 0;
+   static volatile std::size_t g_dontOptimize;
 };
 
 
-class A: virtual public Base
+volatile std::size_t Fixture::g_dontOptimize = 0;
+
+
+struct DynamicCast
+   : public Fixture
 {
-public:
-   static constexpr int TA = 1;
+   DynamicCast() noexcept = default;
 
-   A(int id, int type = TA) noexcept
-      : Base(id, type) 
+   Benchmark::Counter run(
+      Benchmark::Counter n,
+      Benchmark::Tid
+   ) override
    {
-   }
+      std::size_t k = 0;
+      while (n--)
+      {
+         auto o = one();
+         auto ab = dynamic_cast<AB*>(o);
+         if (ab)
+            ++k;
+      }
 
-   void say() override
-   {
-      std::cout << "A::say(" << id() << ")\n";
+      g_dontOptimize = k;
+      return 0;
    }
 };
 
-
-class B: virtual public Base
+struct StaticTypeId
+   : public Fixture
 {
-public:
-   static constexpr int TB = 2;
+   StaticTypeId() noexcept = default;
 
-   B(int id, int type = TB) noexcept
-      : Base(id, type)
+   Benchmark::Counter run(
+      Benchmark::Counter n,
+      Benchmark::Tid
+   ) override
    {
-   }
+      auto& base = typeid(Base);
+      std::size_t nBase = 0;
 
-   void say() override
-   {
-      std::cout << "B::say(" << id() << ")\n";
+      while (n--)
+      {
+         auto o = one();
+         auto& ty = typeid(o);
+
+         if (ty == base)
+            ++nBase;
+      }
+
+      g_dontOptimize = nBase;
+      return 0;
    }
 };
 
-
-class AB: public A, public B
+struct DynamicTypeId
+   : public Fixture
 {
-public:
-   static constexpr int TAB = 3;
+   DynamicTypeId() noexcept = default;
 
-   AB(int id, int type = TAB) noexcept
-      : A(id, type)
-      , B(id, type)
+   Benchmark::Counter run(
+      Benchmark::Counter n,
+      Benchmark::Tid
+   ) override
    {
-   }
+      auto& ab = typeid(AB);
+      std::size_t nAb = 0;
 
-   void say() override
-   {
-      std::cout << "AB::say(" 
-                << A::id() << ":"
-                << B::id() << ")\n";
+      while (n--)
+      {
+         auto o = one();
+         auto& ty = typeid(*o);
+
+         if (ty == ab)
+            ++nAb;
+      }
+
+      g_dontOptimize = nAb;
+      return 0;
    }
 };
-
-
-class BA: public B, public A
-{
-public:
-   static constexpr int TBA = 3;
-
-   BA(int id, int type = TBA) noexcept
-      : B(id, type)
-      , A(id, type)
-   {
-   }
-
-   void say() override
-   {
-      std::cout << "BA::say("
-                << A::id() << ":"
-                << B::id() << ")\n";
-   }
-};
-
-
-std::vector<std::unique_ptr<Base>> makeAB(std::size_t n)
-{
-   std::vector<std::unique_ptr<Base>> v;
-   v.reserve(n);
-
-   Benchmark::Random r(0);
-
-   for (std::size_t i = 0; i < n; ++i)
-   {
-      if (r(1) == 0)
-         v.emplace_back(new AB(i));
-      else
-         v.emplace_back(new BA(i));
-   }
-
-   return v;
-}
 
 
 } // namespace
 
-
-int main()
+int main(int argc, char** argv)
 {
-   Benchmark::Runner r("RTTI performance", 100000000ULL);
+   auto iterations = Benchmark::getIntArgOr(
+      "-n",
+      100000000ULL,
+      argc,
+      argv
+   );
 
-   auto abv = makeAB(1024);
+   if (iterations < 1)
+   {
+      std::cerr << "-n must be positive\n";
+      return -1;
+   }
+
+   Benchmark::Runner r("RTTI performance", iterations);
 
    r.add(
-      "dynamic_cast",
-      [&abv](Benchmark::Counter iterations, Benchmark::Tid)
-         -> Benchmark::Counter
-      {
-         auto c = iterations;
-         std::size_t current = 0;
-         auto count = abv.size();
-         while (c--)
-         {
-            auto o = abv[current].get();
-            auto ab = dynamic_cast<AB*>(o);
-            if (!ab)
-            {
-               auto ba = dynamic_cast<BA*>(o);
-               if (!ba)
-               {
-                  std::terminate();
-               }
-            }
-
-            if (++current == count)
-               current = 0;
-         }
-
-         return 0;
-      }
+      "static typeid()",
+      Fixture::make<StaticTypeId>(),
+      { 1, 2, 4 }
    );
 
    r.add(
-      "typeinfo",
-      [&abv](Benchmark::Counter iterations, Benchmark::Tid)
-         -> Benchmark::Counter
-      {
-         auto c = iterations;
-         std::size_t current = 0;
-         auto count = abv.size();
-         while (c--)
-         {
-            auto o = abv[current].get();
+      "dynamic typeid()",
+      Fixture::make<DynamicTypeId>(),
+      { 1, 2, 4 }
+   );
 
-            auto& ty = typeid(*o);
-            if (ty != typeid(AB))
-               if (ty != typeid(BA))
-                  std::terminate();
-
-            if (++current == count)
-               current = 0;
-         }
-
-         return 0;
-      }
+   r.add(
+      "dynamic_cast<>()",
+      Fixture::make<DynamicCast>(),
+      { 1, 2, 4 }
    );
 
    r.run();

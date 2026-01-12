@@ -103,14 +103,66 @@ struct Malloc
 
 };
 
+
+struct Free
+   : public Fixture
+{
+   Free(
+      std::size_t allocCount,
+      std::initializer_list<std::size_t> sizes
+   )
+      : Fixture(allocCount, sizes)
+   {
+   }
+
+   void prologue(Benchmark::Tid tid) override
+   {
+      auto td = m_td[tid].get();
+      for (std::size_t i = 0; i < m_allocCount; ++i)
+      {
+         auto iSize = td->nextSize++;
+         if (td->nextSize == kSizes.size())
+            td->nextSize = 0;
+
+         auto nextSize = kSizes[iSize];
+         td->allocated[i] = std::malloc(nextSize);
+      }
+
+   }
+
+   Benchmark::Counter run(
+      Benchmark::Counter iterations,
+      Benchmark::Tid tid
+   ) override
+   {
+      auto td = m_td[tid].get();
+      for (auto& a: td->allocated)
+      {
+         std::free(a);
+         a = nullptr;
+         if (!--iterations)
+            break;
+      }
+
+      return iterations;
+   }
+};
+
 } // namespace
 
 
 int main(int argc, char** argv)
 {
-   auto iterations = Benchmark::getIntArgOr(
+   auto const iterations = Benchmark::getIntArgOr(
       "-n",
       1000000ULL,
+      argc,
+      argv
+   );
+
+   std::size_t const allocations = Benchmark::getIntArgOr(
+      "-a",
+      10 * 1024,
       argc,
       argv
    );
@@ -123,12 +175,23 @@ int main(int argc, char** argv)
 
    Benchmark::Runner r("malloc/free speed", iterations);
 
+   auto const pattern = std::initializer_list<std::size_t>
+      { 1, 3, 7, 10, 23, 65, 145, 277, 419, 1023 };
+
    r.add(
       "malloc()",
       Fixture::make<Malloc>(
-         std::size_t{1024 * 1024},
-         std::initializer_list<std::size_t>
-            { 1, 3, 7, 10, 23, 65, 145, 277, 419, 1023 }
+         allocations,
+         pattern
+      ),
+      { 1, 2, 4, 8 }
+   );
+
+   r.add(
+      "free()",
+      Fixture::make<Free>(
+         allocations,
+         pattern
       ),
       { 1, 2, 4, 8 }
    );

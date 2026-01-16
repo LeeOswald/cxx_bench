@@ -1,4 +1,4 @@
-#include "benchmark.hpp"
+#include "run.hpp"
 #include "stopwatch.hpp"
 #include "timestamp.hpp"
 

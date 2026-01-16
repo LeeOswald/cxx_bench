@@ -1,5 +1,7 @@
 #pragma once
 
+#include "compiler.hpp"
+
 #include <chrono>
 
 #if BM_POSIX

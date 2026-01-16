@@ -1,9 +1,6 @@
 #pragma once
 
 
-#include "cputime.hpp"
-
-#include <chrono>
 #include <concepts>
 #include <functional>
 
@@ -67,19 +64,6 @@ private:
    std::function<Counter(Counter, Tid)> m_work;
 };
 
-
-struct Data
-{
-   unsigned threads;
-   std::chrono::nanoseconds wallTime;
-   std::chrono::nanoseconds cpuTime;
-   CpuUsage<std::chrono::microseconds> cpuUsage;
-};
-
-
-Data run(Fixture* f, Counter iterations);
-
-Data run(unsigned threads, Fixture* f, Counter iterations);
 
 
 } // namespace

@@ -1,6 +1,7 @@
 #pragma once
 
-#include "benchmark.hpp"
+#include "fixture.hpp"
+#include "run.hpp"
 #include "terminal.hpp"
 
 #include <initializer_list>

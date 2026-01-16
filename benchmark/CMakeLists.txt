@@ -1,6 +1,6 @@
 
 add_library(benchmark
-   benchmark.cpp
+   run.cpp
    runner.cpp
 )
 

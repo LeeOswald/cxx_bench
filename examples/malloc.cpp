@@ -153,25 +153,24 @@ struct Free
 
 int main(int argc, char** argv)
 {
-   auto const iterations = Benchmark::getIntArgOr(
+   Benchmark::CmdLine cmd(argc, argv);
+
+   std::uint64_t iterations = 1000000ULL;
+   std::size_t allocations = 10 * 1024;
+
+   Benchmark::bindArg(
+      cmd,
       "-n",
-      1000000ULL,
-      argc,
-      argv
+      iterations,
+      "-n must be a positive integer"
    );
 
-   std::size_t const allocations = Benchmark::getIntArgOr(
+   Benchmark::bindArg(
+      cmd,
       "-a",
-      10 * 1024,
-      argc,
-      argv
+      allocations,
+      "-a must be a positive integer"
    );
-
-   if (iterations < 1)
-   {
-      std::cerr << "-n must be positive\n";
-      return -1;
-   }
 
    Benchmark::Runner r("malloc/free speed", iterations);
 

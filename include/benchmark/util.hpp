@@ -1,12 +1,10 @@
 #pragma once
 
+#include <benchmark/cmdline.hpp>
 
-#include <cassert>
-#include <charconv>
-#include <concepts>
+#include <cstdlib>
+#include <iostream>
 #include <memory>
-#include <optional>
-#include <system_error>
 #include <vector>
 
 
@@ -143,51 +141,24 @@ struct AnyObject
 };
 
 
-inline std::optional<int> getIntArg(
+template <typename T>
+   requires std::is_integral_v<T>
+bool bindArg(
+   CmdLine& cmd,
    std::string_view name,
-   int argc,
-   char** argv
+   T& var,
+   std::string_view help
 )
 {
-   for (int i = 1; i < argc; ++i)
-   {
-      auto len = std::strlen(argv[i]);
-      std::string_view v{ argv[i], len };
-      if (v == name)
-      {
-         if (i + 1 < argc)
-         {
-            auto str2 = argv[i + 1];
-            auto len2 = std::strlen(str2);
-            int result = 0;
-            auto parsed = std::from_chars(
-               str2,
-               str2 + len2,
-               result
-            );
-            if (parsed.ec == std::errc{})
-               return result;
-            else
-               break;
-         }
-      }
-   }
+   auto res = cmd.get(name, var);
+   if (res == CmdLine::ArgType::Ok)
+      return true;
 
-   return std::nullopt;
-}
+   if (res == CmdLine::ArgType::NotFound)
+      return false;
 
-inline int getIntArgOr(
-   std::string_view name,
-   int alt,
-   int argc,
-   char** argv
-)
-{
-   auto r = getIntArg(name, argc, argv);
-   if (r)
-      return *r;
-
-   return alt;
+   std::cerr << help << "\n";
+   std::exit(EXIT_FAILURE);
 }
 
 

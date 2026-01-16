@@ -473,18 +473,15 @@ public:
 
 int main(int argc, char** argv)
 {
-   auto iterations = Benchmark::getIntArgOr(
-      "-n",
-      100000000ULL,
-      argc,
-      argv
-   );
+   Benchmark::CmdLine cmd(argc, argv);
+   std::uint64_t iterations = 100000000ULL;
 
-   if (iterations < 1)
-   {
-      std::cerr << "-n must be positive\n";
-      return -1;
-   }
+   Benchmark::bindArg(
+      cmd,
+      "-n",
+      iterations,
+      "-n must be a positive integer"
+   );
 
    Benchmark::Runner r("Function call speed", iterations);
 

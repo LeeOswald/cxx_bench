@@ -1,8 +1,8 @@
 #pragma once
 
 
-#include "cputime.hpp"
-#include "fixture.hpp"
+#include <benchmark/cputime.hpp>
+#include <benchmark/fixture.hpp>
 
 #include <chrono>
 #include <concepts>

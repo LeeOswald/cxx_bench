@@ -1,8 +1,8 @@
 #pragma once
 
-#include "fixture.hpp"
-#include "run.hpp"
-#include "terminal.hpp"
+#include <benchmark/fixture.hpp>
+#include <benchmark/run.hpp>
+#include <benchmark/terminal.hpp>
 
 #include <initializer_list>
 #include <vector>

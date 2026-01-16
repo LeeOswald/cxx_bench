@@ -2,7 +2,7 @@
 #include <atomic>
 #include <exception>
 
-#include "benchmark/compiler.hpp"
+#include "benchmark/benchmark.hpp"
 #include "benchmark/runner.hpp"
 
 

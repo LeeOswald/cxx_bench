@@ -1,5 +1,5 @@
-#include "chrono.hpp"
-#include "runner.hpp"
+#include <benchmark/chrono.hpp>
+#include <benchmark/runner.hpp>
 
 #include <cmath>
 #include <iomanip>

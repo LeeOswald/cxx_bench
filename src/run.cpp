@@ -1,6 +1,6 @@
-#include "run.hpp"
-#include "stopwatch.hpp"
-#include "timestamp.hpp"
+#include <benchmark/run.hpp>
+#include <benchmark/stopwatch.hpp>
+#include <benchmark/timestamp.hpp>
 
 
 #include <condition_variable>

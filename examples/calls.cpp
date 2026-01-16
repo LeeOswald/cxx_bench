@@ -3,7 +3,7 @@
 #include <vector>
 
 
-#include "benchmark/compiler.hpp"
+#include "benchmark/benchmark.hpp"
 #include "benchmark/random.hpp"
 #include "benchmark/runner.hpp"
 #include "benchmark/util.hpp"
